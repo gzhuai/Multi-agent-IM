@@ -1,0 +1,58 @@
+# Environment
+.env
+.env.local
+.env.production
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+server/im-core/coverage.out
+server/im-core/coverage.html
+server/api-gateway/coverage.out
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+server/agent-runtime/build/
+server/agent-runtime/dist/
+server/agent-runtime/*.egg-info/
+server/agent-runtime/htmlcov/
+server/agent-runtime/.coverage
+server/agent-runtime/.pytest_cache/
+server/agent-runtime/.venv/
+server/agent-runtime/venv/
+*.egg
+
+# Node
+node_modules/
+client/web/dist/
+client/web/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+deploy/data/
+
+# Generated code
+shared/gen/
+server/agent-runtime/src/generated/
+## Python egg-info
+*.egg-info/

@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package maim.message;
+
+option go_package = "github.com/multi-agent-im/shared/gen/maim/message;messagepb";
+
+import "maim/common.proto";
+
+// ============================================================
+// Message 数据模型
+// ============================================================
+
+message Message {
+  string id = 1;
+  string channel_id = 2;
+  string sender_id = 3;
+  maim.common.SenderType sender_type = 4;
+  string sender_name = 5;
+  MessageContent content = 6;
+  optional string reply_to = 7;
+  repeated string mentions = 8;
+  int64 timestamp = 9;
+}
+
+message MessageContent {
+  string type = 1;  // text, rich_text, code, file, task_card, approval_card
+  string body = 2;  // JSON string, 结构由 type 决定
+}
+
+message Channel {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  maim.common.ChannelType type = 4;
+  bool is_agent_channel = 5;
+  string created_by = 6;
+  int64 created_at = 7;
+}
+
+message ChannelMember {
+  string member_id = 1;
+  string member_type = 2;  // user, agent
+  string role = 3;
+  string display_name = 4;
+}
+
+// ============================================================
+// Message RPC
+// ============================================================
+
+service MessageService {
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse);
+  rpc StreamChannel(StreamChannelRequest) returns (stream Message);
+
+  // Channel 管理
+  rpc CreateChannel(CreateChannelRequest) returns (CreateChannelResponse);
+  rpc GetChannel(GetChannelRequest) returns (GetChannelResponse);
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+  rpc AddChannelMember(AddChannelMemberRequest) returns (AddChannelMemberResponse);
+  rpc RemoveChannelMember(RemoveChannelMemberRequest) returns (RemoveChannelMemberResponse);
+}
+
+message SendMessageRequest {
+  string channel_id = 1;
+  string sender_id = 2;
+  maim.common.SenderType sender_type = 3;
+  MessageContent content = 4;
+  optional string reply_to = 5;
+  repeated string mentions = 6;
+}
+
+message SendMessageResponse {
+  Message message = 1;
+}
+
+message GetMessagesRequest {
+  string channel_id = 1;
+  int32 limit = 2;
+  optional int64 before_timestamp = 3;
+}
+
+message GetMessagesResponse {
+  repeated Message messages = 1;
+}
+
+message StreamChannelRequest {
+  string channel_id = 1;
+  string subscriber_id = 2;
+}
+
+message CreateChannelRequest {
+  string organization_id = 1;
+  string name = 2;
+  maim.common.ChannelType type = 3;
+  bool is_agent_channel = 4;
+  string created_by = 5;
+  repeated ChannelMember initial_members = 6;
+}
+
+message CreateChannelResponse {
+  Channel channel = 1;
+}
+
+message GetChannelRequest {
+  string channel_id = 1;
+}
+
+message GetChannelResponse {
+  Channel channel = 1;
+  repeated ChannelMember members = 2;
+}
+
+message ListChannelsRequest {
+  string organization_id = 1;
+  string member_id = 2;  // 只查此成员所在的频道
+  maim.common.Pagination pagination = 3;
+}
+
+message ListChannelsResponse {
+  repeated Channel channels = 1;
+  maim.common.PaginatedResponse pagination = 2;
+}
+
+message AddChannelMemberRequest {
+  string channel_id = 1;
+  ChannelMember member = 2;
+}
+
+message AddChannelMemberResponse {
+  bool success = 1;
+}
+
+message RemoveChannelMemberRequest {
+  string channel_id = 1;
+  string member_id = 2;
+  string member_type = 3;
+}
+
+message RemoveChannelMemberResponse {
+  bool success = 1;
+}

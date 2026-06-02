@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package maim.common;
+
+option go_package = "github.com/multi-agent-im/shared/gen/maim/common;commonpb";
+
+// ============================================================
+// 枚举定义
+// ============================================================
+
+enum AgentStatus {
+  AGENT_STATUS_UNSPECIFIED = 0;
+  AGENT_STATUS_OFFLINE = 1;
+  AGENT_STATUS_IDLE = 2;
+  AGENT_STATUS_THINKING = 3;
+  AGENT_STATUS_WORKING = 4;
+  AGENT_STATUS_WAITING = 5;
+  AGENT_STATUS_PAUSED = 6;
+}
+
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_TODO = 1;
+  TASK_STATUS_IN_PROGRESS = 2;
+  TASK_STATUS_REVIEW = 3;
+  TASK_STATUS_DONE = 4;
+  TASK_STATUS_BLOCKED = 5;
+  TASK_STATUS_CANCELLED = 6;
+}
+
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_NORMAL = 2;
+  TASK_PRIORITY_HIGH = 3;
+  TASK_PRIORITY_URGENT = 4;
+}
+
+enum ChannelType {
+  CHANNEL_TYPE_UNSPECIFIED = 0;
+  CHANNEL_TYPE_DIRECT = 1;
+  CHANNEL_TYPE_GROUP = 2;
+  CHANNEL_TYPE_DEPARTMENT = 3;
+  CHANNEL_TYPE_PROJECT = 4;
+}
+
+enum SenderType {
+  SENDER_TYPE_UNSPECIFIED = 0;
+  SENDER_TYPE_HUMAN = 1;
+  SENDER_TYPE_AGENT = 2;
+  SENDER_TYPE_SYSTEM = 3;
+}
+
+enum MemoryTier {
+  MEMORY_TIER_UNSPECIFIED = 0;
+  MEMORY_TIER_CORE = 1;
+  MEMORY_TIER_WORKING = 2;
+  MEMORY_TIER_BUFFER = 3;
+  MEMORY_TIER_ARCHIVED = 4;
+  MEMORY_TIER_TRANSIENT = 5;
+}
+
+// ============================================================
+// 通用消息
+// ============================================================
+
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PaginatedResponse {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+// ============================================================
+// Soul Profile 相关
+// ============================================================
+
+message PersonaTraits {
+  float openness = 1;
+  float conscientiousness = 2;
+  float extraversion = 3;
+  float agreeableness = 4;
+  float neuroticism = 5;
+}
+
+message CommunicationStyle {
+  float verbosity = 1;
+  float formality = 2;
+  float humor = 3;
+  float directness = 4;
+}
+
+message DecisionStyle {
+  float risk_tolerance = 1;
+  float data_driven = 2;
+  float speed_accuracy = 3;
+  float autonomy = 4;
+}
+
+message Persona {
+  PersonaTraits traits = 1;
+  CommunicationStyle communication = 2;
+  DecisionStyle decision_making = 3;
+}
+
+message Identity {
+  string name = 1;
+  string display_name = 2;
+  string role = 3;
+  string department = 4;
+  int32 level = 5;
+  string background = 6;
+  string voice_style = 7;
+  repeated string quirks = 8;
+}
+
+message ValueSystem {
+  repeated string core_principles = 1;
+  repeated string red_lines = 2;
+  repeated string decision_hierarchy = 3;
+}

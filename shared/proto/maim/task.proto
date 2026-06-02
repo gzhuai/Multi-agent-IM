@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package maim.task;
+
+option go_package = "github.com/multi-agent-im/shared/gen/maim/task;taskpb";
+
+import "maim/common.proto";
+
+// ============================================================
+// Task 数据模型
+// ============================================================
+
+message Task {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string creator_id = 4;
+  string creator_type = 5;  // human, agent
+  string assignee_id = 6;
+  optional string parent_task_id = 7;
+  optional string channel_id = 8;
+  maim.common.TaskStatus status = 9;
+  maim.common.TaskPriority priority = 10;
+  repeated string artifact_urls = 11;
+  optional int64 deadline = 12;
+  optional int64 completed_at = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+  repeated string subtask_ids = 16;
+}
+
+message TaskLog {
+  string id = 1;
+  string task_id = 2;
+  string actor_id = 3;
+  string actor_type = 4;  // human, agent
+  string action = 5;
+  string detail = 6;
+  int64 timestamp = 7;
+}
+
+// ============================================================
+// Task RPC
+// ============================================================
+
+service TaskService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc UpdateTaskStatus(UpdateTaskStatusRequest) returns (UpdateTaskStatusResponse);
+  rpc AssignTask(AssignTaskRequest) returns (AssignTaskResponse);
+  rpc AddSubtask(AddSubtaskRequest) returns (AddSubtaskResponse);
+  rpc GetTaskLogs(GetTaskLogsRequest) returns (GetTaskLogsResponse);
+  rpc StreamTaskUpdates(StreamTaskUpdatesRequest) returns (stream TaskUpdateEvent);
+}
+
+message CreateTaskRequest {
+  string title = 1;
+  string description = 2;
+  string creator_id = 3;
+  string creator_type = 4;
+  string assignee_id = 5;
+  optional string parent_task_id = 6;
+  optional string channel_id = 7;
+  maim.common.TaskPriority priority = 8;
+  optional int64 deadline = 9;
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message GetTaskRequest {
+  string task_id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+  repeated TaskLog logs = 2;
+}
+
+message ListTasksRequest {
+  optional string assignee_id = 1;
+  optional maim.common.TaskStatus status = 2;
+  optional maim.common.TaskPriority priority = 3;
+  optional string channel_id = 4;
+  maim.common.Pagination pagination = 5;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  maim.common.PaginatedResponse pagination = 2;
+}
+
+message UpdateTaskStatusRequest {
+  string task_id = 1;
+  maim.common.TaskStatus status = 2;
+  string actor_id = 3;
+  string actor_type = 4;
+  string comment = 5;
+}
+
+message UpdateTaskStatusResponse {
+  Task task = 1;
+}
+
+message AssignTaskRequest {
+  string task_id = 1;
+  string new_assignee_id = 2;
+  string actor_id = 3;
+  string reason = 4;
+}
+
+message AssignTaskResponse {
+  Task task = 1;
+}
+
+message AddSubtaskRequest {
+  string parent_task_id = 1;
+  string title = 2;
+  string description = 3;
+  string assignee_id = 4;
+  maim.common.TaskPriority priority = 5;
+}
+
+message AddSubtaskResponse {
+  Task subtask = 1;
+}
+
+message GetTaskLogsRequest {
+  string task_id = 1;
+  maim.common.Pagination pagination = 2;
+}
+
+message GetTaskLogsResponse {
+  repeated TaskLog logs = 1;
+  maim.common.PaginatedResponse pagination = 2;
+}
+
+message StreamTaskUpdatesRequest {
+  string subscriber_id = 1;
+  optional string assignee_id = 2;
+}
+
+message TaskUpdateEvent {
+  string task_id = 1;
+  maim.common.TaskStatus old_status = 2;
+  maim.common.TaskStatus new_status = 3;
+  string actor_id = 4;
+  string actor_name = 5;
+  int64 timestamp = 6;
+}

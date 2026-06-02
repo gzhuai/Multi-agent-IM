@@ -1,0 +1,165 @@
+syntax = "proto3";
+
+package maim.agent;
+
+option go_package = "github.com/multi-agent-im/shared/gen/maim/agent;agentpb";
+
+import "maim/common.proto";
+
+// ============================================================
+// Agent 数据模型
+// ============================================================
+
+message Agent {
+  string id = 1;
+  string organization_id = 2;
+  string name = 3;
+  string display_name = 4;
+  string role = 5;
+  string department = 6;
+  int32 level = 7;
+  maim.common.AgentStatus status = 8;
+  maim.common.Identity identity = 9;
+  maim.common.Persona persona = 10;
+  maim.common.ValueSystem value_system = 11;
+  string connector_type = 12;
+  bytes connector_config = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+}
+
+message Skill {
+  string name = 1;
+  float proficiency = 2;
+  int32 task_count = 3;
+  repeated string tools = 4;
+  int64 last_used = 5;
+}
+
+// ============================================================
+// Agent 管理 RPC
+// ============================================================
+
+service AgentService {
+  rpc CreateAgent(CreateAgentRequest) returns (CreateAgentResponse);
+  rpc GetAgent(GetAgentRequest) returns (GetAgentResponse);
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  rpc UpdateAgent(UpdateAgentRequest) returns (UpdateAgentResponse);
+  rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+
+  // 生命周期控制
+  rpc ActivateAgent(ActivateAgentRequest) returns (ActivateAgentResponse);
+  rpc PauseAgent(PauseAgentRequest) returns (PauseAgentResponse);
+  rpc ResumeAgent(ResumeAgentRequest) returns (ResumeAgentResponse);
+
+  // 状态查询
+  rpc GetAgentStatus(GetAgentStatusRequest) returns (GetAgentStatusResponse);
+  rpc StreamAgentStatus(StreamAgentStatusRequest) returns (stream AgentStatusEvent);
+}
+
+message CreateAgentRequest {
+  string organization_id = 1;
+  string name = 2;
+  string display_name = 3;
+  string role = 4;
+  string department = 5;
+  maim.common.Identity identity = 6;
+  maim.common.Persona persona = 7;
+  maim.common.ValueSystem value_system = 8;
+  string connector_type = 9;
+  bytes connector_config = 10;
+}
+
+message CreateAgentResponse {
+  Agent agent = 1;
+}
+
+message GetAgentRequest {
+  string agent_id = 1;
+}
+
+message GetAgentResponse {
+  Agent agent = 1;
+  repeated Skill skills = 2;
+}
+
+message ListAgentsRequest {
+  string organization_id = 1;
+  maim.common.AgentStatus status_filter = 2;
+  string department = 3;
+  maim.common.Pagination pagination = 4;
+}
+
+message ListAgentsResponse {
+  repeated Agent agents = 1;
+  maim.common.PaginatedResponse pagination = 2;
+}
+
+message UpdateAgentRequest {
+  string agent_id = 1;
+  optional maim.common.Identity identity = 2;
+  optional maim.common.Persona persona = 3;
+  optional maim.common.ValueSystem value_system = 4;
+  optional string connector_type = 5;
+  optional bytes connector_config = 6;
+}
+
+message UpdateAgentResponse {
+  Agent agent = 1;
+}
+
+message DeleteAgentRequest {
+  string agent_id = 1;
+}
+
+message DeleteAgentResponse {
+  bool success = 1;
+}
+
+message ActivateAgentRequest {
+  string agent_id = 1;
+}
+
+message ActivateAgentResponse {
+  maim.common.AgentStatus status = 1;
+}
+
+message PauseAgentRequest {
+  string agent_id = 1;
+  string reason = 2;
+}
+
+message PauseAgentResponse {
+  maim.common.AgentStatus status = 1;
+}
+
+message ResumeAgentRequest {
+  string agent_id = 1;
+}
+
+message ResumeAgentResponse {
+  maim.common.AgentStatus status = 1;
+}
+
+message GetAgentStatusRequest {
+  string agent_id = 1;
+}
+
+message GetAgentStatusResponse {
+  string agent_id = 1;
+  maim.common.AgentStatus status = 2;
+  string current_task_id = 3;
+  int32 active_task_count = 4;
+}
+
+message StreamAgentStatusRequest {
+  string agent_id = 1;
+}
+
+message AgentStatusEvent {
+  string agent_id = 1;
+  maim.common.AgentStatus old_status = 2;
+  maim.common.AgentStatus new_status = 3;
+  string detail = 4;
+  int64 timestamp = 5;
+}

@@ -1,0 +1,149 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ============================================================
+  # Go 单元测试 (im-core)
+  # ============================================================
+  unit-go-im-core:
+    name: "Go Unit · im-core"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/im-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: server/im-core/go.sum
+      - name: Run unit tests
+        run: go test ./internal/... -race -count=1 -short -timeout 120s
+
+  # ============================================================
+  # Go 单元测试 (api-gateway)
+  # ============================================================
+  unit-go-api-gateway:
+    name: "Go Unit · api-gateway"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/api-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run unit tests
+        run: go test ./internal/... -race -count=1 -short -timeout 120s
+
+  # ============================================================
+  # Python 单元测试
+  # ============================================================
+  unit-python:
+    name: "Python Unit · agent-runtime"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/agent-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -e ".[test]"
+      - name: Run unit tests (skip LLM)
+        run: pytest src/ -x -q -m "not llm" --timeout=10 --cov=src --cov-fail-under=75 --cov-report=term
+
+  # ============================================================
+  # 集成测试 (需要真实 PostgreSQL + Redis)
+  # ============================================================
+  integration:
+    name: "Integration Tests"
+    needs: [unit-go-im-core, unit-go-api-gateway, unit-python]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: multiagent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run Go integration tests
+        working-directory: server/im-core
+        run: go test ./test/... -tags=integration -count=1 -timeout 300s
+        env:
+          DB_HOST: localhost
+          DB_USER: test
+          DB_PASSWORD: test
+          DB_NAME: multiagent_test
+
+      - name: Run Python integration tests
+        working-directory: server/agent-runtime
+        run: pip install -e ".[test]" && pytest tests/ -x -q -m integration --timeout=30
+        env:
+          DB_HOST: localhost
+          DB_USER: test
+          DB_PASSWORD: test
+          DB_NAME: multiagent_test
+
+  # ============================================================
+  # Lint 检查
+  # ============================================================
+  lint:
+    name: "Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Go vet
+        working-directory: server/im-core
+        run: go vet ./...
+
+      - name: Python lint (ruff)
+        working-directory: server/agent-runtime
+        run: pip install ruff && ruff check src/ tests/

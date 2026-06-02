@@ -1,0 +1,10 @@
+version: v2
+modules:
+  - path: maim
+    name: buf.build/multi-agent-im/maim
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE
