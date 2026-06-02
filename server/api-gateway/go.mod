@@ -1,6 +1,6 @@
 module github.com/multi-agent-im/api-gateway
 
-go 1.22
+go 1.23
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
