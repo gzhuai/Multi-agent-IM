@@ -49,6 +49,11 @@ func (h *WSHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	role := r.URL.Query().Get("role")
+	if role == "" {
+		role = "member"
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("WebSocket upgrade error: %v", err)
@@ -59,6 +64,7 @@ func (h *WSHandler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		ID:       uuid.New().String(),
 		UserID:   userID,
 		Username: r.URL.Query().Get("username"),
+		Role:     role,
 		Conn:     conn,
 		Send:     make(chan []byte, 256),
 		Hub:      h.hub,
@@ -104,6 +110,12 @@ func (h *WSHandler) readPump(client *Client) {
 
 		if err := json.Unmarshal(raw, &wsMsg); err != nil {
 			log.Printf("Invalid message format: %v", err)
+			continue
+		}
+
+		// Observers are read-only
+		if client.Role == "observer" && wsMsg.Type == "message" {
+			client.Send <- []byte(`{"type":"error","message":"observers cannot send messages"}`)
 			continue
 		}
 

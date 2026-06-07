@@ -124,9 +124,13 @@ func main() {
 
 	go hub.Run()
 
+	// Start autonomous messaging: periodically wakes idle agents in group channels
+	autonomyMgr := service.NewAutonomyManager(agentClient, msgService)
+	autonomyMgr.Start(3 * time.Minute) // wake every 3 minutes
+
 	wsHandler := handler.NewWSHandler(hub, msgService)
 	msgHandler := handler.NewMessageHandler(wsHandler)
-	channelHandler := handler.NewChannelHandler(msgService)
+	channelHandler := handler.NewChannelHandler(msgService, agentClient)
 
 	// Routes
 	mux := http.NewServeMux()
@@ -140,8 +144,9 @@ func main() {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	})
-	mux.Handle("/api/channels", channelHandler)
-	mux.Handle("/api/channels/", channelHandler)
+	// Channel routes — register explicit paths for Go 1.22+ mux compatibility
+	mux.HandleFunc("/api/channels", channelHandler.ServeHTTP)
+	mux.HandleFunc("/api/channels/", channelHandler.ServeHTTP)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

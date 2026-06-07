@@ -31,6 +31,7 @@ type Client struct {
 	ID           string
 	UserID       string
 	Username     string
+	Role         string // "admin", "member", "observer"
 	Conn         *websocket.Conn
 	Send         chan []byte
 	Hub          *Hub

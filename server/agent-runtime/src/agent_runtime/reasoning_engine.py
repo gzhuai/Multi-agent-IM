@@ -161,6 +161,104 @@ class ReasoningEngine:
         finally:
             await self.db.update_agent_status(agent_id, "IDLE")
 
+    async def process_wake(
+        self,
+        agent_id: str,
+        channel_id: str,
+        participants: list[dict] | None = None,
+    ) -> ReasoningResult:
+        """
+        Wake callback for autonomous messaging.
+        Agent receives a 'wake' prompt and decides whether to speak or stay silent.
+        Returns empty text if the agent chooses to stay silent.
+        """
+        agent_data = await self.agent_service.get_agent(agent_id)
+        if not agent_data:
+            return ReasoningResult(text="")
+
+        try:
+            soul = self.agent_service.build_soul_profile(agent_data)
+
+            # Build a wake-specific system prompt
+            participant_list = ""
+            if participants:
+                names = []
+                for p in participants:
+                    pid = p.get("id", "")[:8]
+                    ptype = p.get("type", "")
+                    tag = "Agent" if ptype == "agent" else "User"
+                    names.append(f"{tag}({pid})")
+                if names:
+                    participant_list = ", ".join(names)
+
+            now = __import__("datetime").datetime.now().strftime("%H:%M")
+            wake_context = {
+                "channel_id": channel_id,
+                "participants": participant_list,
+                "time": now,
+            }
+            system_prompt = soul.build_system_prompt(
+                context=wake_context,
+                memories=[],
+            )
+            # Append the wake instruction
+            system_prompt += (
+                f"\n\n## Wake Check\n"
+                f"It is now {now}. You are in channel #{channel_id}.\n"
+                f"Other participants: {participant_list or 'none'}.\n"
+                f"If you have something relevant to say, any idea to share, or a question to ask — "
+                f"speak now in a natural, conversational way.\n"
+                f"If you have nothing meaningful to add right now, respond with exactly: SILENT"
+            )
+
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            agent_connector = agent_data.get("connector_type") or ""
+            connector_type = env_connector or agent_connector or "claude_code"
+            connector_config = {
+                "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
+                "model": os.getenv("LLM_MODEL", ""),
+                **agent_data.get("connector_config", {}),
+                "system_prompt": system_prompt,
+                "max_tokens": 300,  # Shorter responses for wake
+            }
+            connector = await self._get_connector(connector_type, connector_config)
+
+            # Simple wake context — no message history needed
+            wake_messages = [
+                {"role": "user", "content": f"[System wake at {now}]", "sender_name": "system"}
+            ]
+            context = ConversationContext(
+                channel_id=channel_id,
+                messages=wake_messages,
+                participants=participants or [],
+                mentioned=False,
+            )
+
+            thought = await connector.think(context, MemorySnapshot())
+            text = thought.text.strip()
+
+            # Agent chose silence
+            if text.upper() == "SILENT" or text == "":
+                return ReasoningResult(text="", memory_saved=False)
+
+            # Save wake-generated message as memory
+            await self.agent_service.save_conversation_memory(
+                agent_id,
+                wake_messages + [{"role": "assistant", "content": text}],
+                {"channel_id": channel_id, "wake": True},
+            )
+
+            return ReasoningResult(
+                text=text,
+                actions=thought.actions,
+                reasoning_trace=thought.reasoning_trace,
+                memory_saved=True,
+            )
+
+        except Exception as e:
+            logger.error(f"Wake error for agent {agent_id}: {e}")
+            return ReasoningResult(text="")
+
     async def process_message_stream(
         self,
         agent_id: str,

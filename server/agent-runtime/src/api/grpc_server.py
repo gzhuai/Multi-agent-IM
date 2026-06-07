@@ -135,6 +135,21 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                 "memory_saved": result.memory_saved,
             })
 
+        elif path == "/api/wake":
+            # Autonomous wake — agent decides whether to speak proactively
+            result = self._run(
+                self.reasoning_engine.process_wake(
+                    agent_id=body["agent_id"],
+                    channel_id=body.get("channel_id", ""),
+                    participants=body.get("participants", []),
+                )
+            )
+            self._json(200, {
+                "text": result.text,
+                "actions": result.actions,
+                "memory_saved": result.memory_saved,
+            })
+
         elif path == "/api/think/stream":
             # Streaming thinking endpoint
             self.send_response(200)

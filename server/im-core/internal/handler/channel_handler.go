@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 
@@ -11,11 +12,12 @@ import (
 
 // ChannelHandler exposes REST endpoints for channel management.
 type ChannelHandler struct {
-	msgService *service.MessageService
+	msgService  *service.MessageService
+	agentClient *service.AgentClient
 }
 
-func NewChannelHandler(msgService *service.MessageService) *ChannelHandler {
-	return &ChannelHandler{msgService: msgService}
+func NewChannelHandler(msgService *service.MessageService, agentClient *service.AgentClient) *ChannelHandler {
+	return &ChannelHandler{msgService: msgService, agentClient: agentClient}
 }
 
 func (h *ChannelHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +33,20 @@ func (h *ChannelHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// GET /api/channels → list user's channels
 	if r.Method == http.MethodGet && path == "" {
 		h.ListChannels(w, r)
+		return
+	}
+
+	// POST /api/channels/pause?channel_id=xxx
+	if r.Method == http.MethodPost && path == "/pause" {
+		channelID := r.URL.Query().Get("channel_id")
+		h.PauseChannel(w, r, channelID)
+		return
+	}
+
+	// POST /api/channels/resume?channel_id=xxx
+	if r.Method == http.MethodPost && path == "/resume" {
+		channelID := r.URL.Query().Get("channel_id")
+		h.ResumeChannel(w, r, channelID)
 		return
 	}
 
@@ -150,6 +166,54 @@ func (h *ChannelHandler) AddMember(w http.ResponseWriter, r *http.Request, chann
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// PauseChannel pauses all agents in a channel.
+func (h *ChannelHandler) PauseChannel(w http.ResponseWriter, r *http.Request, channelID string) {
+	agentIDs, err := h.msgService.GetChannelAgents(r.Context(), channelID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	paused := 0
+	for _, aid := range agentIDs {
+		if err := h.agentClient.PauseAgent(r.Context(), aid); err != nil {
+			log.Printf("Pause agent %s error: %v", aid, err)
+			continue
+		}
+		paused++
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":     true,
+		"paused": paused,
+		"total":  len(agentIDs),
+	})
+}
+
+// ResumeChannel resumes all agents in a channel.
+func (h *ChannelHandler) ResumeChannel(w http.ResponseWriter, r *http.Request, channelID string) {
+	agentIDs, err := h.msgService.GetChannelAgents(r.Context(), channelID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	resumed := 0
+	for _, aid := range agentIDs {
+		if err := h.agentClient.ResumeAgent(r.Context(), aid); err != nil {
+			log.Printf("Resume agent %s error: %v", aid, err)
+			continue
+		}
+		resumed++
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":      true,
+		"resumed": resumed,
+		"total":   len(agentIDs),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
