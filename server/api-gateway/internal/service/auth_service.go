@@ -99,10 +99,15 @@ func (s *AuthService) Login(ctx context.Context, req model.LoginRequest) (*model
 	return &model.AuthResponse{Token: token, UserID: user.ID, DisplayName: user.DisplayName}, nil
 }
 
-func (s *AuthService) issueToken(userID, username string) (string, error) {
+func (s *AuthService) issueToken(userID, username string, role ...string) (string, error) {
+	userRole := "member"
+	if len(role) > 0 && role[0] != "" {
+		userRole = role[0]
+	}
 	claims := jwt.MapClaims{
 		"sub":      userID,
 		"username": username,
+		"role":     userRole,
 		"iat":      time.Now().Unix(),
 		"exp":      time.Now().Add(72 * time.Hour).Unix(),
 	}
@@ -110,7 +115,7 @@ func (s *AuthService) issueToken(userID, username string) (string, error) {
 	return token.SignedString(s.jwtSecret)
 }
 
-func (s *AuthService) ValidateToken(tokenString string) (string, string, error) {
+func (s *AuthService) ValidateToken(tokenString string) (string, string, string, error) {
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -118,15 +123,19 @@ func (s *AuthService) ValidateToken(tokenString string) (string, string, error) 
 		return s.jwtSecret, nil
 	})
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return "", "", fmt.Errorf("invalid token")
+		return "", "", "", fmt.Errorf("invalid token")
 	}
 	userID, _ := claims["sub"].(string)
 	username, _ := claims["username"].(string)
-	return userID, username, nil
+	role, _ := claims["role"].(string)
+	if role == "" {
+		role = "member"
+	}
+	return userID, username, role, nil
 }
 
 func genID() string {

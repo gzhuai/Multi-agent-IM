@@ -97,7 +97,10 @@ func main() {
 				continue // Don't let an agent reply to its own message
 			}
 			go func(aid string) {
-				resp, err := agentClient.Think(context.Background(), service.ThinkRequest{
+				// Log agent dispatch
+			auditSvc.LogActionSimple(context.Background(), aid, "agent_dispatched", msg.ChannelID)
+
+			resp, err := agentClient.Think(context.Background(), service.ThinkRequest{
 					AgentID:      aid,
 					ChannelID:    msg.ChannelID,
 					Messages:     messages,
@@ -133,6 +136,11 @@ func main() {
 	channelHandler := handler.NewChannelHandler(msgService, agentClient)
 	taskService := service.NewTaskService(pgStore)
 	taskHandler := handler.NewTaskHandler(taskService)
+	auditSvc := service.NewAuditService(pgStore)
+	auditHandler := handler.NewAuditHandler(auditSvc)
+	emergencyHandler := handler.NewEmergencyHandler(agentClient, msgService, auditSvc)
+	webhookHandler := handler.NewWebhookHandler(msgService, hub)
+	exportHandler := handler.NewExportHandler(msgService)
 
 	// Routes
 	mux := http.NewServeMux()
@@ -151,6 +159,12 @@ func main() {
 	mux.HandleFunc("/api/channels/", channelHandler.ServeHTTP)
 	mux.HandleFunc("/api/tasks", taskHandler.ServeHTTP)
 	mux.HandleFunc("/api/tasks/", taskHandler.ServeHTTP)
+	mux.HandleFunc("/api/audit-logs", auditHandler.ServeHTTP)
+	mux.HandleFunc("/api/audit-logs/", auditHandler.ServeHTTP)
+	mux.HandleFunc("/api/emergency", emergencyHandler.ServeHTTP)
+	mux.HandleFunc("/api/emergency/", emergencyHandler.ServeHTTP)
+	mux.HandleFunc("/api/webhooks/", webhookHandler.ServeHTTP)
+	mux.HandleFunc("/api/export/", exportHandler.ServeHTTP)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),

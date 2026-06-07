@@ -13,6 +13,7 @@ type contextKey string
 const (
 	UserIDKey   contextKey = "user_id"
 	UsernameKey contextKey = "username"
+	UserRoleKey contextKey = "user_role"
 )
 
 // AuthRequired validates JWT and injects user info into context.
@@ -25,7 +26,7 @@ func AuthRequired(authSvc *service.AuthService) func(http.Handler) http.Handler 
 				return
 			}
 
-			userID, username, err := authSvc.ValidateToken(token)
+			userID, username, role, err := authSvc.ValidateToken(token)
 			if err != nil {
 				http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
 				return
@@ -33,6 +34,7 @@ func AuthRequired(authSvc *service.AuthService) func(http.Handler) http.Handler 
 
 			ctx := context.WithValue(r.Context(), UserIDKey, userID)
 			ctx = context.WithValue(ctx, UsernameKey, username)
+			ctx = context.WithValue(ctx, UserRoleKey, role)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -44,7 +46,7 @@ func AuthOptional(authSvc *service.AuthService) func(http.Handler) http.Handler 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractToken(r)
 			if token != "" {
-				userID, username, err := authSvc.ValidateToken(token)
+				userID, username, role, err := authSvc.ValidateToken(token)
 				if err == nil {
 					ctx := context.WithValue(r.Context(), UserIDKey, userID)
 					ctx = context.WithValue(ctx, UsernameKey, username)
@@ -80,4 +82,29 @@ func UsernameFromContext(ctx context.Context) string {
 		return name
 	}
 	return ""
+}
+
+func RoleFromContext(ctx context.Context) string {
+	if role, ok := ctx.Value(UserRoleKey).(string); ok {
+		return role
+	}
+	return "member"
+}
+
+// RequireRole returns middleware that checks the user has at least one of the required roles.
+func RequireRole(roles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userRole := RoleFromContext(r.Context())
+			for _, allowed := range roles {
+				if userRole == allowed {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			w.Write([]byte(`{"error":"insufficient permissions"}`))
+		})
+	}
 }
