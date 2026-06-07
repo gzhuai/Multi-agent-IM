@@ -36,7 +36,8 @@ export function AgentsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     name: "", display_name: "", role: "", department: "",
-    background: "", preset: 0,
+    background: "", preset: 0, connector_type: "openai_compatible",
+    connector_provider: "deepseek", connector_model: "deepseek-chat",
   });
   const [mdFiles, setMdFiles] = useState<{ name: string; content: string }[]>([]);
   const [detailAgent, setDetailAgent] = useState<string | null>(null);
@@ -57,8 +58,11 @@ export function AgentsPage() {
         body: JSON.stringify({
           name: form.name, display_name: form.display_name || form.name,
           role: form.role, department: form.department,
-          connector_type: "claude_code",
-          connector_config: { model: "claude-sonnet-4-6" },
+          connector_type: form.connector_type,
+          connector_config: {
+            provider: form.connector_provider,
+            model: form.connector_model,
+          },
           identity: { name: form.name, display_name: form.display_name || form.name, role: form.role, department: form.department, background: form.background },
           knowledge_documents: mdFiles,
           persona: {
@@ -73,7 +77,7 @@ export function AgentsPage() {
         const data = await resp.json();
         useAgentStore.getState().setAgents([...agents, { id: data.id, name: data.name, displayName: data.display_name || data.name, role: data.role || "", department: data.department || "", status: "OFFLINE" }]);
         setShowCreate(false);
-        setForm({ name: "", display_name: "", role: "", department: "", background: "", preset: 0 });
+        setForm({ name: "", display_name: "", role: "", department: "", background: "", preset: 0, connector_type: "openai_compatible", connector_provider: "deepseek", connector_model: "deepseek-chat" });
       }
     } catch (e) { console.error(e); }
     finally { setCreating(false); }
@@ -200,6 +204,32 @@ export function AgentsPage() {
                   <p className="text-surface-muted text-sm">{agent.role} · {agent.department}</p>
                 </div>
                 <button onClick={() => setDetailAgent(null)} className="text-surface-muted hover:text-white text-xl">✕</button>
+              </div>
+
+              {/* Connector info */}
+              <div className="px-6 py-5 border-b border-white/5">
+                <h3 className="text-[13px] font-semibold text-white mb-3">🔌 LLM 后端</h3>
+                <div className="flex items-center gap-2">
+                  <select
+                    onChange={async (e) => {
+                      const [type, provider] = e.target.value.split(":");
+                      if (!type) return;
+                      await fetch(`http://localhost:50051/api/agents/${agent.id}/connector`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ connector_type: type, connector_config: { provider } }),
+                      });
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-surface-darker border border-white/10 text-white text-xs"
+                  >
+                    <option value="openai_compatible:deepseek">DeepSeek (deepseek-chat)</option>
+                    <option value="openai_compatible:openai">GPT-4o (OpenAI)</option>
+                    <option value="openai_compatible:gemini">Gemini 2.5 Flash</option>
+                    <option value="openai_compatible:groq">Llama 4 (Groq)</option>
+                    <option value="claude_code:claude">Claude Sonnet (Anthropic)</option>
+                  </select>
+                  <span className="text-surface-muted text-xs">切换后下次推理生效</span>
+                </div>
               </div>
 
               {/* Soul Radar */}
@@ -374,6 +404,39 @@ export function AgentsPage() {
                         >×</button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              {/* LLM Backend Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-surface-dark mb-2">🤖 LLM 后端</label>
+                <div className="grid grid-cols-3 gap-2 mb-3">
+                  {[
+                    { type: "openai_compatible", provider: "deepseek", model: "deepseek-chat", label: "DeepSeek", desc: "便宜·中文好" },
+                    { type: "openai_compatible", provider: "openai", model: "gpt-4o", label: "GPT-4o", desc: "最强综合" },
+                    { type: "claude_code", provider: "claude", model: "claude-sonnet-4-6", label: "Claude", desc: "推理深" },
+                    { type: "openai_compatible", provider: "gemini", model: "gemini-2.5-flash", label: "Gemini", desc: "免费额度" },
+                    { type: "openai_compatible", provider: "groq", model: "llama-4-scout", label: "Groq", desc: "超快" },
+                    { type: "openai_compatible", provider: "custom", model: "", label: "自定义", desc: "兼容API" },
+                  ].map((opt) => {
+                    const isActive = form.connector_provider === opt.provider && form.connector_type === opt.type;
+                    return (
+                      <button key={opt.provider}
+                        onClick={() => setForm({...form, connector_type: opt.type, connector_provider: opt.provider, connector_model: opt.model})}
+                        className={`p-2.5 rounded-xl text-left border transition-all ${
+                          isActive ? "border-brand-400 bg-brand-50 shadow-sm" : "border-surface-gray hover:border-surface-border"
+                        }`}>
+                        <div className="text-xs font-bold text-surface-dark">{opt.label}</div>
+                        <div className="text-[10px] text-surface-muted mt-0.5">{opt.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {form.connector_provider === "custom" && (
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <input value={form.connector_model} onChange={(e) => setForm({...form, connector_model: e.target.value})}
+                      placeholder="模型名 (如 meta-llama/llama-4)" className="px-3 py-2 bg-surface-light border border-surface-border rounded-xl text-sm" />
                   </div>
                 )}
               </div>

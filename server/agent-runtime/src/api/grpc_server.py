@@ -110,14 +110,14 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
 
         elif path.startswith("/api/agents/") and path.endswith("/connector"):
             agent_id = path.split("/")[3]
-            # Update connector — store in agent config (in-memory + DB update)
             new_type = body.get("connector_type", "openai_compatible")
             new_config = body.get("connector_config", {})
+            # Persist to DB
+            self._run(self.db.update_agent_connector(agent_id, new_type, new_config))
             self._json(200, {
                 "ok": True,
                 "agent_id": agent_id,
                 "connector_type": new_type,
-                "note": "connector will take effect on next think call",
             })
 
         elif path.startswith("/api/agents/") and path.endswith("/activate"):

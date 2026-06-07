@@ -118,14 +118,18 @@ class ReasoningEngine:
             )
 
             # 5. Call LLM
-            # Resolve connector: env > agent config > claude_code fallback
-            env_connector = os.getenv("LLM_PROVIDER") or ""
+            # Resolve connector: agent DB config > env fallback > claude_code default
             agent_connector = agent_data.get("connector_type") or ""
-            connector_type = env_connector or agent_connector or "claude_code"
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            connector_type = agent_connector or env_connector or "claude_code"
+
+            agent_cfg = agent_data.get("connector_config", {})
             connector_config = {
-                "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
-                "model": os.getenv("LLM_MODEL", ""),
-                **agent_data.get("connector_config", {}),
+                "provider": agent_cfg.get("provider") or os.getenv("LLM_PROVIDER_PRESET", ""),
+                "model": agent_cfg.get("model") or os.getenv("LLM_MODEL", ""),
+                "api_key": agent_cfg.get("api_key") or "",
+                "base_url": agent_cfg.get("base_url") or os.getenv("ANTHROPIC_BASE_URL", ""),
+                **agent_cfg,
                 "system_prompt": system_prompt,
             }
             connector = await self._get_connector(connector_type, connector_config)
@@ -224,10 +228,13 @@ class ReasoningEngine:
                 f"If you have nothing meaningful to add right now, respond with exactly: SILENT"
             )
 
-            env_connector = os.getenv("LLM_PROVIDER") or ""
             agent_connector = agent_data.get("connector_type") or ""
-            connector_type = env_connector or agent_connector or "claude_code"
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            connector_type = agent_connector or env_connector or "claude_code"
+            agent_cfg = agent_data.get("connector_config", {})
             connector_config = {
+                "provider": agent_cfg.get("provider") or os.getenv("LLM_PROVIDER_PRESET", ""),
+                "model": agent_cfg.get("model") or os.getenv("LLM_MODEL", ""),
                 "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
                 "model": os.getenv("LLM_MODEL", ""),
                 **agent_data.get("connector_config", {}),
@@ -327,10 +334,13 @@ class ReasoningEngine:
                 mentioned=True,
             )
 
-            env_connector = os.getenv("LLM_PROVIDER") or ""
             agent_connector = agent_data.get("connector_type") or ""
-            connector_type = env_connector or agent_connector or "claude_code"
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            connector_type = agent_connector or env_connector or "claude_code"
+            agent_cfg = agent_data.get("connector_config", {})
             connector_config = {
+                "provider": agent_cfg.get("provider") or os.getenv("LLM_PROVIDER_PRESET", ""),
+                "model": agent_cfg.get("model") or os.getenv("LLM_MODEL", ""),
                 "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
                 "model": os.getenv("LLM_MODEL", ""),
                 **agent_data.get("connector_config", {}),

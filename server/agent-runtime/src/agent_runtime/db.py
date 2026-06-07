@@ -88,6 +88,18 @@ class Database:
                 "created_at": row[13],
             }
 
+    async def update_agent_connector(self, agent_id: str, connector_type: str, connector_config: dict) -> None:
+        async with self.session() as sess:
+            await sess.execute(text("""
+                UPDATE agents SET connector_type = :ct, connector_config = :cfg::jsonb,
+                    updated_at = :now WHERE id = :id
+            """), {
+                "id": agent_id, "ct": connector_type,
+                "cfg": json.dumps(connector_config),
+                "now": datetime.now(timezone.utc),
+            })
+            await sess.commit()
+
     async def update_agent_status(self, agent_id: str, status: str) -> None:
         async with self.session() as sess:
             await sess.execute(text("""
