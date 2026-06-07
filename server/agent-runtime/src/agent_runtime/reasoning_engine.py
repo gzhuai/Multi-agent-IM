@@ -101,9 +101,12 @@ class ReasoningEngine:
             )
 
             # 5. Call LLM
-            # Resolve connector: agent config > LLM_PROVIDER env > claude_code
-            connector_type = agent_data.get("connector_type") or os.getenv("LLM_PROVIDER") or "claude_code"
+            # Resolve connector: env > agent config > claude_code fallback
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            agent_connector = agent_data.get("connector_type") or ""
+            connector_type = env_connector or agent_connector or "claude_code"
             connector_config = {
+                "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
                 "model": os.getenv("LLM_MODEL", ""),
                 **agent_data.get("connector_config", {}),
                 "system_prompt": system_prompt,
@@ -183,8 +186,11 @@ class ReasoningEngine:
                 mentioned=True,
             )
 
-            connector_type = agent_data.get("connector_type") or os.getenv("LLM_PROVIDER") or "claude_code"
+            env_connector = os.getenv("LLM_PROVIDER") or ""
+            agent_connector = agent_data.get("connector_type") or ""
+            connector_type = env_connector or agent_connector or "claude_code"
             connector_config = {
+                "provider": os.getenv("LLM_PROVIDER_PRESET", ""),
                 "model": os.getenv("LLM_MODEL", ""),
                 **agent_data.get("connector_config", {}),
                 "system_prompt": system_prompt,

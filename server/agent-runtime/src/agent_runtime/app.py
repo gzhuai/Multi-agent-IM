@@ -4,7 +4,14 @@ Agent Runtime entry point.
 
 import asyncio
 import logging
+import os
 import signal
+
+from dotenv import load_dotenv
+
+# Load .env from project root (5 levels up from src/agent_runtime/app.py)
+_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+load_dotenv(os.path.join(_root, ".env"))
 
 from agent_runtime.config import load
 from agent_runtime.db import Database

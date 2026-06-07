@@ -106,6 +106,11 @@ class OpenAICompatibleConnector(AgentConnector):
         if not api_key:
             api_key = os.getenv("LLM_API_KEY", "")
 
+        logger.info(
+            "OpenAI-compatible connector initialized: provider=%s model=%s base_url=%s",
+            provider, self.model, self.base_url,
+        )
+
         timeout = httpx.Timeout(
             connect=10.0,
             read=float(agent_config.get("timeout", 600)),
@@ -120,11 +125,6 @@ class OpenAICompatibleConnector(AgentConnector):
                 "Content-Type": "application/json",
             },
             timeout=timeout,
-        )
-
-        logger.info(
-            "OpenAI-compatible connector initialized: provider=%s model=%s base_url=%s",
-            provider, self.model, self.base_url,
         )
 
     async def close(self):
