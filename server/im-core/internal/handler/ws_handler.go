@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -124,7 +125,7 @@ func (h *WSHandler) readPump(client *Client) {
 			if wsMsg.ChannelID != "" {
 				h.hub.Subscribe(wsMsg.ChannelID, client.ID)
 				// Send channel history
-				msgs, _ := h.msgService.GetChannelHistory(r.Context(), wsMsg.ChannelID, 50)
+				msgs, _ := h.msgService.GetChannelHistory(context.Background(), wsMsg.ChannelID, 50)
 				historyPayload, _ := json.Marshal(map[string]interface{}{
 					"type":     "history",
 					"channel_id": wsMsg.ChannelID,

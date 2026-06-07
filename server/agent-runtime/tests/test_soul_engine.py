@@ -39,12 +39,11 @@ class TestSoulProfileAssembly:
         """验证正式 Agent 必须配置至少一条红线"""
         profile = {
             "name": "无约束Agent",
+            "role": "测试工程师",
             "values": {"red_lines": []}
         }
-        # 在生产模式 (非 sandbox) 下应该拒绝空红线配置
-        # 测试框架下此断言为 RED，等待实现
-        from soul_engine.profile import validate_agent_profile  # noqa — 导入待实现
-        with pytest.raises(ValueError, match="生产Agent必须配置至少一条红线"):
+        from soul_engine.profile import validate_agent_profile
+        with pytest.raises(ValueError, match="Production agent must have at least one red_line"):
             validate_agent_profile(profile, mode="production")
 
 
