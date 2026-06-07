@@ -127,6 +127,15 @@ class ReasoningEngine:
                 memory_saved=memory_saved,
             )
 
+        except Exception as e:
+            logger.error(f"Reasoning error for agent {agent_id}: {e}", exc_info=True)
+            return ReasoningResult(
+                text=f"[Agent reasoning unavailable: {e}]",
+                actions=[],
+                reasoning_trace="",
+                memory_saved=False,
+            )
+
         finally:
             await self.db.update_agent_status(agent_id, "IDLE")
 

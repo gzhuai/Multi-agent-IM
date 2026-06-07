@@ -8,20 +8,27 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/multi-agent-im/api-gateway/internal/middleware"
 )
 
 type Proxy struct {
-	imCoreURL  string
-	client     *http.Client
-	wsProxy    *httputil.ReverseProxy
+	imCoreURL string
+	client    *http.Client
+	wsProxy   *httputil.ReverseProxy
 }
 
 func NewProxy(imCoreURL string) *Proxy {
 	target, _ := url.Parse(fmt.Sprintf("http://%s", imCoreURL))
+	rp := httputil.NewSingleHostReverseProxy(target)
+	// Ensure WebSocket upgrade headers are forwarded
+	rp.ModifyResponse = func(resp *http.Response) error {
+		return nil
+	}
 	return &Proxy{
 		imCoreURL: imCoreURL,
 		client:    &http.Client{},
-		wsProxy:   httputil.NewSingleHostReverseProxy(target),
+		wsProxy:   rp,
 	}
 }
 
@@ -70,10 +77,10 @@ func (p *Proxy) ProxyToIMCore(w http.ResponseWriter, r *http.Request) {
 
 // ProxyWebSocket forwards WebSocket upgrade requests to IM Core.
 func (p *Proxy) ProxyWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Pass user_id from context as header to IM Core
-	userID := r.Context().Value("user_id")
-	if userID != nil {
-		r.Header.Set("X-User-ID", userID.(string))
+	// Inject user_id from auth context into headers for IM Core
+	userID := middleware.UserIDFromContext(r.Context())
+	if userID != "" {
+		r.Header.Set("X-User-ID", userID)
 	}
 	p.wsProxy.ServeHTTP(w, r)
 }

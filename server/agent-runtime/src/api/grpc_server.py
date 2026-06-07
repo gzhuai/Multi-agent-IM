@@ -23,6 +23,19 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
     db: Database = None
     agent_service: AgentService = None
     reasoning_engine: ReasoningEngine = None
+    _loop: asyncio.AbstractEventLoop = None
+
+    @classmethod
+    def _get_loop(cls):
+        if cls._loop is None or cls._loop.is_closed():
+            cls._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(cls._loop)
+        return cls._loop
+
+    @staticmethod
+    def _run(coro):
+        loop = AgentAPIHandler._get_loop()
+        return loop.run_until_complete(coro)
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -32,12 +45,12 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._json(200, {"status": "ok", "service": "agent-runtime"})
 
         elif path == "/api/agents":
-            agents = asyncio.run(self.agent_service.list_agents())
+            agents = self._run(self.agent_service.list_agents())
             self._json(200, {"agents": agents})
 
         elif path.startswith("/api/agents/") and path.endswith("/status"):
             agent_id = path.split("/")[3]
-            agent = asyncio.run(self.agent_service.get_agent(agent_id))
+            agent = self._run(self.agent_service.get_agent(agent_id))
             if agent:
                 self._json(200, {"id": agent["id"], "status": agent["status"]})
             else:
@@ -51,13 +64,13 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         body = self._read_body()
 
         if path == "/api/agents":
-            result = asyncio.run(self.agent_service.create_agent(body))
+            result = self._run(self.agent_service.create_agent(body))
             # Inject knowledge documents into agent memory
             docs = body.get("knowledge_documents", [])
             if docs:
                 agent_id = result["id"]
                 for doc in docs:
-                    asyncio.run(self.agent_service.inject_knowledge_document(
+                    self._run(self.agent_service.inject_knowledge_document(
                         agent_id, doc.get("name", "doc.md"), doc.get("content", "")
                     ))
             self._json(201, result)
@@ -65,19 +78,19 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         elif path.startswith("/api/agents/") and path.endswith("/activate"):
             agent_id = path.split("/")[3]
             try:
-                status = asyncio.run(self.agent_service.activate_agent(agent_id))
+                status = self._run(self.agent_service.activate_agent(agent_id))
                 self._json(200, {"id": agent_id, "status": status})
             except ValueError as e:
                 self._json(404, {"error": str(e)})
 
         elif path.startswith("/api/agents/") and path.endswith("/pause"):
             agent_id = path.split("/")[3]
-            status = asyncio.run(self.agent_service.pause_agent(agent_id))
+            status = self._run(self.agent_service.pause_agent(agent_id))
             self._json(200, {"id": agent_id, "status": status})
 
         elif path.startswith("/api/agents/") and path.endswith("/resume"):
             agent_id = path.split("/")[3]
-            status = asyncio.run(self.agent_service.resume_agent(agent_id))
+            status = self._run(self.agent_service.resume_agent(agent_id))
             self._json(200, {"id": agent_id, "status": status})
 
         elif path == "/api/agents/activity":
@@ -85,12 +98,12 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             agent_id = body.get("agent_id")
             activity = body.get("activity", "")
             task_count = body.get("task_count")
-            asyncio.run(self.agent_service.update_activity(agent_id, activity, task_count))
+            self._run(self.agent_service.update_activity(agent_id, activity, task_count))
             self._json(200, {"ok": True})
 
         elif path == "/api/tasks/enqueue":
             # Enqueue a task for an agent with priority (preemptive scheduling)
-            result = asyncio.run(self.agent_service.enqueue_task(
+            result = self._run(self.agent_service.enqueue_task(
                 agent_id=body["agent_id"],
                 task=body["task"],
                 priority=body.get("priority", "NORMAL"),
@@ -100,7 +113,7 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         elif path.startswith("/api/tasks/") and path.endswith("/dequeue"):
             # Get next task respecting priority order
             agent_id = path.split("/")[3]
-            task = asyncio.run(self.agent_service.dequeue_task(agent_id))
+            task = self._run(self.agent_service.dequeue_task(agent_id))
             if task:
                 self._json(200, task)
             else:
@@ -108,7 +121,7 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
 
         elif path == "/api/think":
             # Core thinking endpoint — called by IM Core when agent receives a message
-            result = asyncio.run(
+            result = self._run(
                 self.reasoning_engine.process_message(
                     agent_id=body["agent_id"],
                     channel_id=body.get("channel_id", ""),
@@ -140,7 +153,7 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                     self.wfile.flush()
                 self.wfile.write(b"data: [DONE]\n\n")
 
-            asyncio.run(stream())
+            self._run(stream())
 
         else:
             self._json(404, {"error": "not found"})

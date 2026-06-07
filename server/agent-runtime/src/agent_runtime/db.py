@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 
 from agent_runtime.config import DatabaseConfig
@@ -15,13 +16,13 @@ from agent_runtime.config import DatabaseConfig
 
 class Database:
     def __init__(self, cfg: DatabaseConfig):
-        self.engine = create_async_engine(cfg.dsn, echo=False)
+        self.engine = create_async_engine(cfg.dsn, echo=False, poolclass=NullPool)
         self.session_factory = async_sessionmaker(self.engine, expire_on_commit=False)
 
     async def close(self):
         await self.engine.dispose()
 
-    async def session(self) -> AsyncSession:
+    def session(self) -> AsyncSession:
         return self.session_factory()
 
     # ============================================================

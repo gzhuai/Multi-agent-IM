@@ -9,6 +9,7 @@ import signal
 from agent_runtime.config import load
 from agent_runtime.db import Database
 from api.grpc_server import AgentRuntimeServer
+import connector  # noqa: F401 — trigger connector registration
 
 logger = logging.getLogger(__name__)
 

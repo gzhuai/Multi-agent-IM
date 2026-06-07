@@ -74,3 +74,10 @@ func UserIDFromContext(ctx context.Context) string {
 	}
 	return ""
 }
+
+func UsernameFromContext(ctx context.Context) string {
+	if name, ok := ctx.Value(UsernameKey).(string); ok {
+		return name
+	}
+	return ""
+}

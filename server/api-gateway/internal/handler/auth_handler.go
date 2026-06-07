@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/multi-agent-im/api-gateway/internal/middleware"
 	"github.com/multi-agent-im/api-gateway/internal/model"
 	"github.com/multi-agent-im/api-gateway/internal/service"
 )
@@ -55,8 +56,13 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("user_id").(string)
-	username := r.Context().Value("username").(string)
+	userID := middleware.UserIDFromContext(r.Context())
+	username := middleware.UsernameFromContext(r.Context())
+
+	if userID == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not authenticated"})
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]string{
 		"user_id":  userID,
