@@ -26,6 +26,8 @@ interface ChatState {
   setActiveChannel: (channelId: string) => void;
   addMessage: (message: Message) => void;
   loadMessages: (channelId: string, messages: Message[]) => void;
+  addChannel: (channel: Channel) => void;
+  setChannels: (channels: Channel[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -50,4 +52,11 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => ({
       messages: { ...state.messages, [channelId]: messages },
     })),
+
+  addChannel: (channel) =>
+    set((state) => ({
+      channels: [...state.channels, channel],
+    })),
+
+  setChannels: (channels) => set({ channels }),
 }));

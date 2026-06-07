@@ -19,8 +19,8 @@ type Hub struct {
 	channels    map[string]map[string]bool // channelID → set of connectionID
 
 	// Callbacks
-	onMessage      func(msg *domain.Message) error
-	onAgentMention func(msg *domain.Message) (*domain.Message, error) // returns agent's reply
+	onMessage        func(msg *domain.Message) error
+	onChannelMessage func(msg *domain.Message) // fires for all non-agent messages in channels — main.go dispatches to group agents
 
 	register   chan *Client
 	unregister chan *Client
@@ -49,9 +49,10 @@ func NewHub(onMessage func(msg *domain.Message) error) *Hub {
 	}
 }
 
-// SetAgentMentionHandler sets the callback for when an agent is @mentioned.
-func (h *Hub) SetAgentMentionHandler(handler func(msg *domain.Message) (*domain.Message, error)) {
-	h.onAgentMention = handler
+// SetChannelMessageHandler sets the callback fired for every non-agent message in a channel.
+// Used to dispatch to all agents in a group channel.
+func (h *Hub) SetChannelMessageHandler(handler func(msg *domain.Message)) {
+	h.onChannelMessage = handler
 }
 
 func (h *Hub) Run() {
@@ -127,7 +128,8 @@ func (h *Hub) Unsubscribe(channelID, connectionID string) {
 	}
 }
 
-// BroadcastMessage persists and broadcasts a message. Also checks for agent mentions.
+// BroadcastMessage persists and broadcasts a message.
+// For non-agent messages in group channels, notifies the channel handler to dispatch to all agents.
 func (h *Hub) BroadcastMessage(msg *domain.Message) {
 	if msg.ID == "" {
 		msg.ID = uuid.New().String()
@@ -142,28 +144,11 @@ func (h *Hub) BroadcastMessage(msg *domain.Message) {
 
 	h.broadcast <- msg
 
-	// Check for agent mentions and invoke agent reasoning in background
-	if h.onAgentMention != nil && hasAgentMention(msg) {
-		go func() {
-			reply, err := h.onAgentMention(msg)
-			if err != nil {
-				log.Printf("Agent mention processing error: %v", err)
-				return
-			}
-			if reply != nil {
-				h.BroadcastMessage(reply)
-			}
-		}()
+	// Trigger channel-level agent dispatch for non-agent messages
+	// (agents don't trigger other agents — prevents infinite loop)
+	if h.onChannelMessage != nil && msg.SenderType != "agent" {
+		go h.onChannelMessage(msg)
 	}
-}
-
-func hasAgentMention(msg *domain.Message) bool {
-	for _, m := range msg.Mentions {
-		if len(m) > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // GetOnlineUsers returns the set of user IDs currently connected.

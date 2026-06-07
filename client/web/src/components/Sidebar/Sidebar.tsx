@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
 import { useAgentStore, sortAgentsByBusyness } from "../../stores/agentStore";
 import { useAuthStore } from "../../stores/authStore";
+import { ChannelCreateDialog } from "../ChannelCreateDialog";
 
 const agentGradients = [
   "from-brand-400 via-brand-500 to-accent-indigo",
@@ -26,6 +28,7 @@ export function Sidebar() {
   const agents = useAgentStore((s) => s.agents);
   const displayName = useAuthStore((s) => s.displayName);
   const activeChannel = channelId || "general";
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
 
   const sortedAgents = sortAgentsByBusyness(agents);
 
@@ -50,7 +53,12 @@ export function Sidebar() {
         {/* === 频道 === */}
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-[11px] font-bold text-surface-muted uppercase tracking-widest">频道</span>
-          <span className="text-surface-muted text-sm cursor-pointer hover:text-white transition-colors leading-none">+</span>
+          <span
+            className="text-surface-muted text-sm cursor-pointer hover:text-white transition-colors leading-none"
+            onClick={() => setShowCreateDialog(true)}
+          >
+            +
+          </span>
         </div>
         {channels.map((ch) => {
           const isActive = activeChannel === ch.id;
@@ -120,6 +128,11 @@ export function Sidebar() {
           <span>AI 员工管理</span>
         </Link>
       </nav>
+
+      <ChannelCreateDialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+      />
 
       {/* User footer */}
       <div className="h-14 flex items-center gap-2.5 px-4 border-t border-white/5 bg-surface-darker/50">

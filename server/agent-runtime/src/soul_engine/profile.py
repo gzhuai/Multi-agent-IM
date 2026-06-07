@@ -92,6 +92,19 @@ class SoulProfile:
             for r in self.values.red_lines:
                 parts.append(f"- {r}")
 
+        # Current conversation context
+        channel_id = context.get("channel_id", "")
+        participants = context.get("participants", "")
+        if channel_id or participants:
+            parts.append("\n## Current Context")
+            if channel_id:
+                parts.append(f"You are in a group conversation in channel #{channel_id}.")
+            if participants:
+                parts.append(f"Other participants in this chat: {participants}")
+            parts.append("You are part of a team discussion. Respond naturally as a team member would — "
+                         "be helpful, concise, and collaborative. You don't need to @mention others unless "
+                         "directly addressing them.")
+
         if memories:
             parts.append("\n## Relevant Memories")
             for m in memories[:10]:

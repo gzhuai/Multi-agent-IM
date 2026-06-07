@@ -87,9 +87,26 @@ class ReasoningEngine:
                 relational=[],
             )
 
-            # 4. Build system prompt and prepare conversation context
+            # 4. Build system prompt with channel context and participants
+            participant_list = ""
+            if participants:
+                names = []
+                for p in participants:
+                    pid = p.get("id", "")[:8]
+                    ptype = p.get("type", "")
+                    if ptype == "agent":
+                        names.append(f"Agent({pid})")
+                    else:
+                        names.append(f"User({pid})")
+                if names:
+                    participant_list = ", ".join(names)
+
+            prompt_context = {
+                "channel_id": channel_id,
+                "participants": participant_list,
+            }
             system_prompt = soul.build_system_prompt(
-                context={"channel_id": channel_id},
+                context=prompt_context,
                 memories=memory_snapshot.episodic[:10],
             )
 
@@ -174,8 +191,21 @@ class ReasoningEngine:
                 relational=[],
             )
 
+            participant_list = ""
+            if participants:
+                names = []
+                for p in participants:
+                    pid = p.get("id", "")[:8]
+                    ptype = p.get("type", "")
+                    if ptype == "agent":
+                        names.append(f"Agent({pid})")
+                    else:
+                        names.append(f"User({pid})")
+                if names:
+                    participant_list = ", ".join(names)
+
             system_prompt = soul.build_system_prompt(
-                context={"channel_id": channel_id},
+                context={"channel_id": channel_id, "participants": participant_list},
                 memories=memory_snapshot.episodic[:10],
             )
 

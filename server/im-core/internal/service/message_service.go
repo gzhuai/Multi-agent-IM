@@ -124,5 +124,129 @@ func (s *MessageService) GetOrCreateDirectChannel(ctx context.Context, orgID, us
 	return channelID, nil
 }
 
+// ── Channel management ──────────────────────────────────────────
+
+// CreateGroupChannel creates a new group channel.
+func (s *MessageService) CreateGroupChannel(ctx context.Context, orgID, name, creatorID string) (string, error) {
+	if s.db == nil {
+		return "", fmt.Errorf("database not available")
+	}
+	// Use orgID as a fallback creator if creatorID is not a UUID
+	creatorUUID := creatorID
+	if len(creatorID) != 36 || creatorID[8] != '-' {
+		creatorUUID = orgID // fallback to org owner
+	}
+	var channelID string
+	err := s.db.Pool().QueryRow(ctx,
+		`INSERT INTO channels (organization_id, name, type, is_agent_channel, created_by)
+		 VALUES ($1, $2, 'group', true, $3::uuid) RETURNING id`,
+		orgID, name, creatorUUID,
+	).Scan(&channelID)
+	if err != nil {
+		return "", fmt.Errorf("create group channel: %w", err)
+	}
+	// Add creator as admin member
+	_, _ = s.db.Pool().Exec(ctx,
+		`INSERT INTO channel_members (channel_id, member_id, member_type, role)
+		 VALUES ($1, $2, 'user', 'admin') ON CONFLICT DO NOTHING`,
+		channelID, creatorID,
+	)
+	return channelID, nil
+}
+
+// AddChannelMember adds a user or agent to a channel.
+func (s *MessageService) AddChannelMember(ctx context.Context, channelID, memberID, memberType, role string) error {
+	if s.db == nil {
+		return fmt.Errorf("database not available")
+	}
+	_, err := s.db.Pool().Exec(ctx,
+		`INSERT INTO channel_members (channel_id, member_id, member_type, role)
+		 VALUES ($1::uuid, $2, $3, $4) ON CONFLICT DO NOTHING`,
+		channelID, memberID, memberType, role,
+	)
+	return err
+}
+
+// GetChannelMembers returns all members of a channel.
+func (s *MessageService) GetChannelMembers(ctx context.Context, channelID string) ([]domain.ChannelMember, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not available")
+	}
+	rows, err := s.db.Pool().Query(ctx,
+		`SELECT member_id, member_type, role FROM channel_members WHERE channel_id = $1`,
+		channelID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query channel members: %w", err)
+	}
+	defer rows.Close()
+
+	var members []domain.ChannelMember
+	for rows.Next() {
+		var m domain.ChannelMember
+		if err := rows.Scan(&m.MemberID, &m.MemberType, &m.Role); err != nil {
+			return nil, fmt.Errorf("scan member: %w", err)
+		}
+		members = append(members, m)
+	}
+	return members, nil
+}
+
+// ListChannels returns channels the user is a member of.
+func (s *MessageService) ListChannels(ctx context.Context, userID string) ([]domain.Channel, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not available")
+	}
+	rows, err := s.db.Pool().Query(ctx,
+		`SELECT c.id, c.organization_id, c.name, c.type, c.is_agent_channel, c.created_by, c.created_at
+		 FROM channels c
+		 INNER JOIN channel_members cm ON cm.channel_id = c.id
+		 WHERE cm.member_id = $1
+		 ORDER BY c.created_at DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list channels: %w", err)
+	}
+	defer rows.Close()
+
+	var channels []domain.Channel
+	for rows.Next() {
+		var ch domain.Channel
+		if err := rows.Scan(&ch.ID, &ch.OrganizationID, &ch.Name, &ch.Type,
+			&ch.IsAgentChannel, &ch.CreatedBy, &ch.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan channel: %w", err)
+		}
+		channels = append(channels, ch)
+	}
+	return channels, nil
+}
+
+// GetChannelAgents returns agent IDs that are members of a channel.
+func (s *MessageService) GetChannelAgents(ctx context.Context, channelID string) ([]string, error) {
+	if s.db == nil {
+		return nil, fmt.Errorf("database not available")
+	}
+	rows, err := s.db.Pool().Query(ctx,
+		`SELECT member_id FROM channel_members
+		 WHERE channel_id = $1 AND member_type = 'agent'`,
+		channelID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query channel agents: %w", err)
+	}
+	defer rows.Close()
+
+	var agentIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan agent id: %w", err)
+		}
+		agentIDs = append(agentIDs, id)
+	}
+	return agentIDs, nil
+}
+
 // Ensure time import is used (needed by domain model)
 var _ = time.Now
