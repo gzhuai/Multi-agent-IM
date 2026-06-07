@@ -51,8 +51,9 @@ Multi-agent-IM/
 - [x] Claude API 集成 (Anthropic SDK + tool-use loop + streaming)
 - [x] 飞书风格 UI (登录/聊天/Agent管理/私聊/动态排序)
 - [x] MD 文档导入 + 任务抢占队列 + 任务级活动状态
-- [ ] Go + Docker 环境安装 (用户侧待完成)
-- [ ] 全部 5 个服务联调
+- [x] Go + Docker 环境安装 (2026-06-07 已验证)
+- [x] 全部 5 个服务联调 (2026-06-07 全链路验证通过)
+- [ ] 设置 ANTHROPIC_API_KEY (Agent 推理需要有效 API key)
 
 ## 开发命令
 
@@ -84,16 +85,22 @@ make lint           # Go vet + Python ruff + ESLint
 5. **人类始终在环路中** — 关键操作需审批, 复盘产生的 Lessons Learned 需人工确认
 6. **前端 Dev Mode** — `App.tsx` 中 `DEV_MODE=true` 绕过登录, 方便 UI 开发
 
-## 环境状态 (2026-06-03)
+## 环境状态 (2026-06-07)
 
 | 组件 | 状态 |
 |------|:--:|
 | Node.js v20.18.0 | ✓ |
 | Python 3.14.5 | ✓ |
-| Go 1.22 | ✗ 需安装 https://go.dev/dl/ |
-| Docker Desktop | ✗ 需安装 https://www.docker.com/products/docker-desktop/ |
-| 前端 :5173 | ✓ 运行中 (dev mode, 绕过登录) |
-| Agent Runtime :50051 | ✓ 运行中 |
+| Go 1.26.4 | ✓ (编译通过) |
+| Docker 29.5.2 | ✓ |
+| PostgreSQL 16 pgvector | ✓ :5432 |
+| Redis 7 | ✓ :6379 |
+| MinIO | ✓ :9000 |
+| 前端 :5173 | ✓ |
+| API Gateway :3000 | ✓ |
+| IM Core :8080 | ✓ |
+| Agent Runtime :50051 | ✓ |
+| ANTHROPIC_API_KEY | ✗ 需在 .env 中设置有效 key |
 
 ## 下一步 (Phase 2: 多Agent协作)
 
