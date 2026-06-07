@@ -3,6 +3,7 @@ import { useAgentStore } from "../stores/agentStore";
 import { useAuthStore } from "../stores/authStore";
 import { SoulRadar } from "../components/SoulRadar";
 import { MemoryPanel } from "../components/MemoryPanel";
+import { FrameworkCompare } from "../components/FrameworkCompare";
 
 const agentColors = [
   "from-brand-400 via-brand-500 to-accent-purple",
@@ -218,6 +219,12 @@ export function AgentsPage() {
               <div className="px-6 py-5 border-b border-white/5">
                 <h3 className="text-[13px] font-semibold text-white mb-3">记忆</h3>
                 <MemoryPanel agentId={agent.id} />
+              </div>
+
+              {/* Framework comparison */}
+              <div className="px-6 py-5 border-b border-white/5">
+                <h3 className="text-[13px] font-semibold text-white mb-3">🔌 LLM 框架性能</h3>
+                <FrameworkCompare />
               </div>
 
               {/* Retrospect */}

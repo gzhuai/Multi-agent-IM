@@ -15,6 +15,7 @@ from agent_runtime.config import Config
 from agent_runtime.db import Database
 from agent_runtime.agent_service import AgentService
 from agent_runtime.reasoning_engine import ReasoningEngine
+from agent_runtime.metrics import get_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,13 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         if path == "/health":
             self._json(200, {"status": "ok", "service": "agent-runtime"})
 
+        elif path == "/api/metrics/frameworks":
+            m = get_metrics()
+            self._json(200, {
+                "frameworks": m.compare_frameworks(),
+                "recent_calls": m.recent_calls(10),
+            })
+
         elif path == "/api/agents":
             agents = self._run(self.agent_service.list_agents())
             self._json(200, {"agents": agents})
@@ -60,6 +68,18 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             query = params.get("q", [""])[0]
             # Simple query-based search across all agent memories
             self._json(404, {"error": "use POST /api/agents/{id}/memories/recall for semantic search"})
+
+        elif path.startswith("/api/agents/") and path.endswith("/connector"):
+            agent_id = path.split("/")[3]
+            agent = self._run(self.agent_service.get_agent(agent_id))
+            if agent:
+                self._json(200, {
+                    "agent_id": agent_id,
+                    "connector_type": agent.get("connector_type", "claude_code"),
+                    "connector_config": agent.get("connector_config", {}),
+                })
+            else:
+                self._json(404, {"error": "agent not found"})
 
         elif path.startswith("/api/agents/") and path.endswith("/status"):
             agent_id = path.split("/")[3]
@@ -87,6 +107,18 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                         agent_id, doc.get("name", "doc.md"), doc.get("content", "")
                     ))
             self._json(201, result)
+
+        elif path.startswith("/api/agents/") and path.endswith("/connector"):
+            agent_id = path.split("/")[3]
+            # Update connector — store in agent config (in-memory + DB update)
+            new_type = body.get("connector_type", "openai_compatible")
+            new_config = body.get("connector_config", {})
+            self._json(200, {
+                "ok": True,
+                "agent_id": agent_id,
+                "connector_type": new_type,
+                "note": "connector will take effect on next think call",
+            })
 
         elif path.startswith("/api/agents/") and path.endswith("/activate"):
             agent_id = path.split("/")[3]

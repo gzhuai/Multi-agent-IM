@@ -130,7 +130,20 @@ class ReasoningEngine:
             }
             connector = await self._get_connector(connector_type, connector_config)
 
+            import time
+            t0 = time.monotonic()
             thought = await connector.think(context, memory_snapshot)
+            elapsed_ms = (time.monotonic() - t0) * 1000
+
+            # Track metrics
+            from agent_runtime.metrics import get_metrics
+            tokens_in = sum(len(m.get("content", "")) for m in messages) // 4  # rough estimate
+            tokens_out = len(thought.text) // 4 if thought.text else 0
+            get_metrics().record(
+                connector=connector_type, model=connector_config.get("model", ""),
+                agent_id=agent_id, latency_ms=elapsed_ms,
+                tokens_in=tokens_in, tokens_out=tokens_out,
+            )
 
             # 6. Save conversation to memory
             memory_saved = False
