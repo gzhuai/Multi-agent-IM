@@ -119,6 +119,57 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             else:
                 self._json(204, {"message": "no tasks queued"})
 
+        elif path.startswith("/api/tasks/") and path.endswith("/execute"):
+            # Agent executes a specific task — reasoning with task context
+            agent_id = body.get("agent_id")
+            task_title = body.get("title", "")
+            task_desc = body.get("description", "")
+            if not agent_id:
+                self._json(400, {"error": "agent_id required"})
+                return
+            result = self._run(
+                self.reasoning_engine.process_message(
+                    agent_id=agent_id,
+                    channel_id=body.get("channel_id", ""),
+                    messages=[{
+                        "role": "user",
+                        "content": f"Execute task: {task_title}\n\n{task_desc}",
+                        "sender_name": "task-system",
+                    }],
+                    participants=body.get("participants", []),
+                )
+            )
+            self._json(200, {
+                "text": result.text,
+                "actions": result.actions,
+                "memory_saved": result.memory_saved,
+            })
+
+        elif path.startswith("/api/tasks/") and path.endswith("/decompose"):
+            # LLM decomposes a task into subtasks
+            agent_id = body.get("agent_id", "")
+            task_title = body.get("title", "")
+            task_desc = body.get("description", "")
+            from agent_runtime.task_decomposer import decompose_task
+            all_agents = self._run(self.agent_service.list_agents(
+                org_id="2b711d7c-29b1-429c-b61d-e93ddaa46e41"
+            ))
+            result = self._run(decompose_task(
+                agent_id=agent_id,
+                task_title=task_title,
+                task_description=task_desc,
+                available_agents=all_agents,
+                reasoning_engine=self.reasoning_engine,
+            ))
+            self._json(200, {
+                "subtasks": [
+                    {"title": s.title, "description": s.description,
+                     "suggested_assignee": s.suggested_assignee, "priority": s.priority}
+                    for s in result.subtasks
+                ],
+                "reasoning": result.reasoning,
+            })
+
         elif path == "/api/think":
             # Core thinking endpoint — called by IM Core when agent receives a message
             result = self._run(

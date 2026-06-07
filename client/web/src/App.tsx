@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./components/Layout";
 import { ChatPage } from "./pages/ChatPage";
 import { AgentsPage } from "./pages/AgentsPage";
+import { TasksPage } from "./pages/TasksPage";
 import { LoginPage } from "./pages/LoginPage";
 import { useAuthStore } from "./stores/authStore";
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/" element={<ChatPage />} />
         <Route path="/channel/:channelId" element={<ChatPage />} />
         <Route path="/agents" element={<AgentsPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

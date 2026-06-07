@@ -24,7 +24,7 @@ class AgentService:
     async def get_agent(self, agent_id: str) -> Optional[dict]:
         return await self.db.get_agent(agent_id)
 
-    async def list_agents(self, org_id: str = "default") -> list[dict]:
+    async def list_agents(self, org_id: str = "2b711d7c-29b1-429c-b61d-e93ddaa46e41") -> list[dict]:
         return await self.db.list_agents(org_id)
 
     async def activate_agent(self, agent_id: str) -> str:

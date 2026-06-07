@@ -121,6 +121,13 @@ export function Sidebar() {
 
         <div className="border-t border-white/5 my-3 mx-3" />
 
+        {/* === 任务 === */}
+        <Link to="/tasks"
+          className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] text-surface-muted hover:bg-white/5 hover:text-white transition-colors">
+          <span className="text-base w-4 text-center shrink-0">📋</span>
+          <span>任务看板</span>
+        </Link>
+
         {/* === 管理 === */}
         <Link to="/agents"
           className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] text-surface-muted hover:bg-white/5 hover:text-white transition-colors">

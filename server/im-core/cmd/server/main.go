@@ -131,6 +131,8 @@ func main() {
 	wsHandler := handler.NewWSHandler(hub, msgService)
 	msgHandler := handler.NewMessageHandler(wsHandler)
 	channelHandler := handler.NewChannelHandler(msgService, agentClient)
+	taskService := service.NewTaskService(pgStore)
+	taskHandler := handler.NewTaskHandler(taskService)
 
 	// Routes
 	mux := http.NewServeMux()
@@ -147,6 +149,8 @@ func main() {
 	// Channel routes — register explicit paths for Go 1.22+ mux compatibility
 	mux.HandleFunc("/api/channels", channelHandler.ServeHTTP)
 	mux.HandleFunc("/api/channels/", channelHandler.ServeHTTP)
+	mux.HandleFunc("/api/tasks", taskHandler.ServeHTTP)
+	mux.HandleFunc("/api/tasks/", taskHandler.ServeHTTP)
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
