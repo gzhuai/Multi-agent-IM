@@ -47,6 +47,7 @@ func main() {
 	// Services
 	msgService := service.NewMessageService(pgStore, redisStore)
 	agentClient := service.NewAgentClient("http://localhost:50051")
+	auditSvc := service.NewAuditService(pgStore)
 
 	// WebSocket Hub (with message persistence)
 	hub := handler.NewHub(func(msg *domain.Message) error {
@@ -97,10 +98,9 @@ func main() {
 				continue // Don't let an agent reply to its own message
 			}
 			go func(aid string) {
-				// Log agent dispatch
-			auditSvc.LogActionSimple(context.Background(), aid, "agent_dispatched", msg.ChannelID)
+				auditSvc.LogActionSimple(context.Background(), aid, "agent_dispatched", msg.ChannelID)
 
-			resp, err := agentClient.Think(context.Background(), service.ThinkRequest{
+				resp, err := agentClient.Think(context.Background(), service.ThinkRequest{
 					AgentID:      aid,
 					ChannelID:    msg.ChannelID,
 					Messages:     messages,
@@ -136,7 +136,6 @@ func main() {
 	channelHandler := handler.NewChannelHandler(msgService, agentClient)
 	taskService := service.NewTaskService(pgStore)
 	taskHandler := handler.NewTaskHandler(taskService)
-	auditSvc := service.NewAuditService(pgStore)
 	auditHandler := handler.NewAuditHandler(auditSvc)
 	emergencyHandler := handler.NewEmergencyHandler(agentClient, msgService, auditSvc)
 	webhookHandler := handler.NewWebhookHandler(msgService, hub)

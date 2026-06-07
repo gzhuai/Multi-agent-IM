@@ -53,7 +53,8 @@ Multi-agent-IM/
 - [x] MD 文档导入 + 任务抢占队列 + 任务级活动状态
 - [x] Go + Docker 环境安装 (2026-06-07 已验证)
 - [x] 全部 5 个服务联调 (2026-06-07 全链路验证通过)
-- [ ] 设置 ANTHROPIC_API_KEY (Agent 推理需要有效 API key)
+- [x] 设置 ANTHROPIC_API_KEY (Phase 5: DeepSeek key 已配置，支持5个LLM后端)
+- [x] Phase 6 企业级特性 (审计/熔断/RBAC/Webhook/部署, 2026-06-08)
 
 ## 开发命令
 
@@ -114,4 +115,5 @@ make lint           # Go vet + Python ruff + ESLint
 
 - 仓库: `D:/Projects/Multi-agent-IM`
 - 初始提交: `8dada00` — Phase 0 + Phase 1 MVP, 91 files, ~14.7k lines
+- 最新提交: `cfd9034` — Phase 6 完成, 15 commits, ~98 files, ~10,500 lines
 - 远端: 未配置
