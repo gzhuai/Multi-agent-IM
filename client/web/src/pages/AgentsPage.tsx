@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAgentStore } from "../stores/agentStore";
 import { useAuthStore } from "../stores/authStore";
+import { SoulRadar } from "../components/SoulRadar";
+import { MemoryPanel } from "../components/MemoryPanel";
 
 const agentColors = [
   "from-brand-400 via-brand-500 to-accent-purple",
@@ -36,6 +38,9 @@ export function AgentsPage() {
     background: "", preset: 0,
   });
   const [mdFiles, setMdFiles] = useState<{ name: string; content: string }[]>([]);
+  const [detailAgent, setDetailAgent] = useState<string | null>(null);
+  const [retrospecting, setRetrospecting] = useState(false);
+  const [retrospectResult, setRetrospectResult] = useState<Record<string, unknown> | null>(null);
 
   const onlineCount = agents.filter(a => a.status !== "OFFLINE").length;
   const workingCount = agents.filter(a => a.status === "WORKING" || a.status === "THINKING").length;
@@ -125,7 +130,9 @@ export function AgentsPage() {
             const status = statusConfig[agent.status];
             const gradient = agentColors[idx % agentColors.length];
             return (
-              <div key={agent.id} className="group bg-surface-white border border-surface-gray rounded-2xl p-5 hover:border-brand-200 hover:shadow-card-hover transition-all duration-200">
+              <div key={agent.id}
+                onClick={() => setDetailAgent(detailAgent === agent.id ? null : agent.id)}
+                className="group bg-surface-white border border-surface-gray rounded-2xl p-5 hover:border-brand-200 hover:shadow-card-hover transition-all duration-200 cursor-pointer">
                 <div className="flex items-start gap-4">
                   <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-lg font-bold shadow-md shrink-0`}>
                     {agent.displayName[0]}
@@ -177,6 +184,93 @@ export function AgentsPage() {
           )}
         </div>
       </div>
+
+      {/* Agent Detail Panel */}
+      {detailAgent && (() => {
+        const agent = agents.find(a => a.id === detailAgent);
+        if (!agent) return null;
+        return (
+          <div className="fixed inset-0 z-40 flex items-start justify-center pt-20 bg-black/40" onClick={() => setDetailAgent(null)}>
+            <div className="bg-surface-dark rounded-2xl w-[640px] max-h-[80vh] overflow-y-auto shadow-2xl border border-white/10 mx-4" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="sticky top-0 bg-surface-dark border-b border-white/5 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                <div>
+                  <h2 className="text-white font-bold text-lg">{agent.displayName}</h2>
+                  <p className="text-surface-muted text-sm">{agent.role} · {agent.department}</p>
+                </div>
+                <button onClick={() => setDetailAgent(null)} className="text-surface-muted hover:text-white text-xl">✕</button>
+              </div>
+
+              {/* Soul Radar */}
+              <div className="px-6 py-5 border-b border-white/5">
+                <h3 className="text-[13px] font-semibold text-white mb-3">灵魂画像</h3>
+                <SoulRadar traits={{
+                  openness: 0.7,
+                  conscientiousness: 0.8,
+                  extraversion: 0.5,
+                  agreeableness: 0.4,
+                  neuroticism: 0.3,
+                  directness: 0.65,
+                }} size={220} />
+              </div>
+
+              {/* Memory Panel */}
+              <div className="px-6 py-5 border-b border-white/5">
+                <h3 className="text-[13px] font-semibold text-white mb-3">记忆</h3>
+                <MemoryPanel agentId={agent.id} />
+              </div>
+
+              {/* Retrospect */}
+              <div className="px-6 py-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[13px] font-semibold text-white">自我复盘</h3>
+                  <button
+                    onClick={async () => {
+                      setRetrospecting(true);
+                      setRetrospectResult(null);
+                      try {
+                        const resp = await fetch(`http://localhost:50051/api/agents/${agent.id}/retrospect`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ period_days: 7 }),
+                        });
+                        const data = await resp.json();
+                        setRetrospectResult(data);
+                      } catch (e) { console.error(e); }
+                      setRetrospecting(false);
+                    }}
+                    disabled={retrospecting}
+                    className="px-3 py-1.5 rounded-lg bg-brand-500/20 border border-brand-500/30 text-brand-400 text-xs hover:bg-brand-500/30 disabled:opacity-40 transition-colors"
+                  >
+                    {retrospecting ? "复盘分析中..." : "🤖 开始复盘"}
+                  </button>
+                </div>
+                {retrospectResult && (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-white/80">{retrospectResult.summary as string}</p>
+                    {Array.isArray(retrospectResult.key_findings) && (retrospectResult.key_findings as string[]).length > 0 && (
+                      <div>
+                        <span className="text-[11px] text-surface-muted uppercase tracking-wider">关键发现</span>
+                        {(retrospectResult.key_findings as string[]).map((f: string, i: number) => (
+                          <div key={i} className="text-accent-amber/80 text-xs mt-1">💡 {f}</div>
+                        ))}
+                      </div>
+                    )}
+                    {retrospectResult.candidate_core_memories && Array.isArray(retrospectResult.candidate_core_memories) && (retrospectResult.candidate_core_memories as string[]).length > 0 && (
+                      <div>
+                        <span className="text-[11px] text-surface-muted uppercase tracking-wider">候选核心记忆</span>
+                        {(retrospectResult.candidate_core_memories as string[]).map((m: string, i: number) => (
+                          <div key={i} className="text-accent-teal/80 text-xs mt-1">🧠 {m}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Create Modal */}
       {showCreate && (

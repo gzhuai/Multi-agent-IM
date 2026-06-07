@@ -48,6 +48,19 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             agents = self._run(self.agent_service.list_agents())
             self._json(200, {"agents": agents})
 
+        elif path.startswith("/api/agents/") and path.endswith("/memories"):
+            agent_id = path.split("/")[3]
+            tier = params.get("tier", ["working"])[0]
+            limit = int(params.get("limit", ["50"])[0])
+            memories = self._run(self.db.get_all_memories(agent_id, limit=limit))
+            self._json(200, {"memories": memories, "agent_id": agent_id})
+
+        elif path.startswith("/api/memories/") and path.endswith("/search"):
+            memory_id = path.split("/")[3]
+            query = params.get("q", [""])[0]
+            # Simple query-based search across all agent memories
+            self._json(404, {"error": "use POST /api/agents/{id}/memories/recall for semantic search"})
+
         elif path.startswith("/api/agents/") and path.endswith("/status"):
             agent_id = path.split("/")[3]
             agent = self._run(self.agent_service.get_agent(agent_id))
@@ -169,6 +182,42 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                 ],
                 "reasoning": result.reasoning,
             })
+
+        elif path.startswith("/api/agents/") and path.endswith("/memories/recall"):
+            # Semantic memory search
+            agent_id = path.split("/")[3]
+            query = body.get("query", "")
+            tier = body.get("tier", "working")
+            limit = body.get("limit", 10)
+            from soul_engine.memory import generate_embedding, semantic_search
+            memories = self._run(self.db.get_all_memories(agent_id, limit=200))
+            results = semantic_search(query, memories, top_k=limit)
+            self._json(200, {"results": results, "query": query, "count": len(results)})
+
+        elif path.startswith("/api/memories/") and path.endswith("/promote"):
+            memory_id = path.split("/")[3]
+            new_tier = body.get("tier", "core")
+            ok = self._run(self.db.update_memory_tier(memory_id, new_tier))
+            self._json(200, {"ok": ok, "tier": new_tier})
+
+        elif path.startswith("/api/memories/") and path.endswith("/archive"):
+            memory_id = path.split("/")[3]
+            ok = self._run(self.db.update_memory_tier(memory_id, "archived"))
+            self._json(200, {"ok": ok, "tier": "archived"})
+
+        elif path.startswith("/api/agents/") and path.endswith("/retrospect"):
+            # Agent self-reflection
+            agent_id = path.split("/")[3]
+            from agent_runtime.retrospect import run_retrospect
+            period_days = body.get("period_days", 7)
+            report = self._run(run_retrospect(
+                agent_id=agent_id,
+                period_days=period_days,
+                db=self.db,
+                agent_service=self.agent_service,
+                reasoning_engine=self.reasoning_engine,
+            ))
+            self._json(200, report)
 
         elif path == "/api/think":
             # Core thinking endpoint — called by IM Core when agent receives a message

@@ -148,3 +148,61 @@ class Database:
                  "created_at": r[6].isoformat()}
                 for r in result.fetchall()
             ]
+
+    async def search_memories_by_vector(
+        self, agent_id: str, embedding: list[float], tier: str = "working", limit: int = 10,
+    ) -> list[dict]:
+        """Search memories by pgvector cosine similarity + importance."""
+        async with self.session() as sess:
+            result = await sess.execute(text("""
+                SELECT id, type, tier, content, importance, tags, created_at,
+                       1 - (embedding <=> :embedding::vector) AS similarity
+                FROM agent_memories
+                WHERE agent_id = :agent_id
+                  AND tier = :tier
+                  AND embedding IS NOT NULL
+                ORDER BY embedding <=> :embedding::vector
+                LIMIT :limit
+            """), {"agent_id": agent_id, "tier": tier, "embedding": embedding, "limit": limit})
+            return [
+                {"id": r[0], "type": r[1], "tier": r[2],
+                 "content": r[3] if isinstance(r[3], dict) else json.loads(r[3] or "{}"),
+                 "importance": r[4], "tags": r[5],
+                 "created_at": r[6].isoformat(), "similarity": float(r[7])}
+                for r in result.fetchall()
+            ]
+
+    async def get_all_memories(self, agent_id: str, limit: int = 50) -> list[dict]:
+        """Get all memories for an agent across tiers."""
+        async with self.session() as sess:
+            result = await sess.execute(text("""
+                SELECT id, type, tier, content, importance, tags, created_at
+                FROM agent_memories
+                WHERE agent_id = :agent_id AND tier != 'transient'
+                ORDER BY importance DESC, created_at DESC
+                LIMIT :limit
+            """), {"agent_id": agent_id, "limit": limit})
+            return [
+                {"id": r[0], "type": r[1], "tier": r[2],
+                 "content": r[3] if isinstance(r[3], dict) else json.loads(r[3] or "{}"),
+                 "importance": r[4], "tags": r[5],
+                 "created_at": r[6].isoformat()}
+                for r in result.fetchall()
+            ]
+
+    async def update_memory_tier(self, memory_id: str, new_tier: str) -> bool:
+        """Promote or archive a memory."""
+        async with self.session() as sess:
+            result = await sess.execute(text(
+                "UPDATE agent_memories SET tier = :tier WHERE id = :id",
+            ), {"tier": new_tier, "id": memory_id})
+            await sess.commit()
+            return result.rowcount > 0
+
+    async def update_memory_embedding(self, memory_id: str, embedding: list[float]) -> None:
+        """Update the pgvector embedding for a memory."""
+        async with self.session() as sess:
+            await sess.execute(text(
+                "UPDATE agent_memories SET embedding = :embedding::vector WHERE id = :id",
+            ), {"embedding": embedding, "id": memory_id})
+            await sess.commit()
