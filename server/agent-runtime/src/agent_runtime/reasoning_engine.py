@@ -11,6 +11,7 @@ This is where everything comes together:
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 
 from agent_runtime.db import Database
@@ -100,13 +101,14 @@ class ReasoningEngine:
             )
 
             # 5. Call LLM
-            connector = await self._get_connector(
-                agent_data.get("connector_type", "claude_code"),
-                {
-                    **agent_data.get("connector_config", {}),
-                    "system_prompt": system_prompt,
-                },
-            )
+            # Resolve connector: agent config > LLM_PROVIDER env > claude_code
+            connector_type = agent_data.get("connector_type") or os.getenv("LLM_PROVIDER") or "claude_code"
+            connector_config = {
+                "model": os.getenv("LLM_MODEL", ""),
+                **agent_data.get("connector_config", {}),
+                "system_prompt": system_prompt,
+            }
+            connector = await self._get_connector(connector_type, connector_config)
 
             thought = await connector.think(context, memory_snapshot)
 
@@ -181,13 +183,13 @@ class ReasoningEngine:
                 mentioned=True,
             )
 
-            connector = await self._get_connector(
-                agent_data.get("connector_type", "claude_code"),
-                {
-                    **agent_data.get("connector_config", {}),
-                    "system_prompt": system_prompt,
-                },
-            )
+            connector_type = agent_data.get("connector_type") or os.getenv("LLM_PROVIDER") or "claude_code"
+            connector_config = {
+                "model": os.getenv("LLM_MODEL", ""),
+                **agent_data.get("connector_config", {}),
+                "system_prompt": system_prompt,
+            }
+            connector = await self._get_connector(connector_type, connector_config)
 
             full_text = ""
             async for chunk in connector.think_stream(context, memory_snapshot):
