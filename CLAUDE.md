@@ -49,7 +49,7 @@ Multi-agent-IM/
 
 ## 当前阶段: ✅ v2 架构迁移全部完成 (2026-06-10)
 
-> Phase 0-6 功能开发已完成。v2 架构升级 6 个 Phase 全部交付——
+> Phase 0-6 + v2 架构升级 7 个 Phase 全部交付。
 > 从"内置推理引擎"成功迁移到"外部Agent框架代理"，AI员工现在能真正干活。
 >
 > 详见:
@@ -69,8 +69,9 @@ Multi-agent-IM/
 | **3** | WorkflowEngine — DAG编排·拓扑分层·并行分发 | workflow_engine.py | 20 |
 | **4** | Hermes Agent Connector — NousResearch AIAgent 集成 | hermes_agent.py | 14 |
 | **5** | UI改造 — 框架选择/AgentEventStream/ApprovalCard | 4 components | — |
+| **5+** | Claude Code CLI Connector — 子进程集成完整 Claude Code harness | claude_code_cli.py | ✅ 实测 |
 
-> **总计**: 32 文件 (18 新增 + 14 修改) | 160 tests | 0 回归
+> **总计**: 33 文件 (19 新增 + 14 修改) | 160 tests | 0 回归 | 4 个 v2 Connector 全部就绪
 
 ### Phase 0-1 MVP ✅
 - [x] JWT 认证 (register/login/me)
@@ -202,6 +203,35 @@ CONNECTOR_REGISTRY_V2 = {
 
 - 仓库: `D:/Projects/Multi-agent-IM`
 - 远端: https://github.com/gzhuai/Multi-agent-IM
-- 初始提交: `8dada00` — Phase 0+1 MVP
-- 前次提交: `602a299` — Phase 6 完成
-- 提交数: 16 commits | 文件: ~100 | 代码: ~10,500 lines → v2 新增 ~5,000 lines
+- 最新提交: `16b41bb` — feat: Claude Code CLI Connector
+- v2 总提交: 2 个 (v2 架构升级 + Claude Code CLI)
+- v2 新增: ~6,000 lines
+
+---
+
+## 明日继续入口 (2026-06-10 收工状态)
+
+### 当前状态
+- **160 tests, 0 fail** — 全绿
+- **4 个 v2 Connector 全部就绪** — anthropic_agent / claude_code_cli / hermes_agent / workflow_engine
+- **DeepSeek API 已验证** — 用你已有的 key 就能让 AI 员工干活
+- **Claude Code CLI 已验证** — 通过子进程调用，完整 harness 可用
+- **GitHub push 待重试** — commit 已本地保存 (`16b41bb`)，网络恢复后 `git push`
+
+### 启动命令（明天继续时）
+```bash
+docker compose -f deploy/docker-compose.dev.yml up -d
+cd server/im-core && go run ./cmd/server/main.go &
+cd server/api-gateway && go run ./cmd/server/main.go &
+cd server/agent-runtime && python -m agent_runtime.app &
+cd client/web && npm run dev &
+# 前端: http://localhost:5173
+```
+
+### 建议下一步
+1. **git push** — 网络恢复后推送到 GitHub
+2. **OpenClaw ACP Connector** — 如果你装了 OpenClaw，可以参照 claude_code_cli.py 模式新增
+3. **在线体验** — 打开 http://localhost:5173，创建 Agent，在频道里对话
+4. **配置 Anthropic API key** — 把 `.env` 里的 `ANTHROPIC_API_KEY=your-anthropic-api-key-here` 换成真实 key
+5. **修复 7 个前端 TS 错误** — 都是预先存在的，非 v2 引入
+6. **Go amd64 + 生产 Dockerfile** — 基础设施收尾
