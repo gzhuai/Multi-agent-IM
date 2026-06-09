@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useChatStore, Message } from "../stores/chatStore";
 import { useAuthStore } from "../stores/authStore";
+import { dispatchAgentEvent } from "../components/AgentEventStream";
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -30,6 +31,10 @@ export function useWebSocket() {
             loadMessages(data.channel_id, data.messages);
             break;
           case "pong":
+            break;
+          case "agent_event":
+            // v2: Forward agent events to EventStream component
+            dispatchAgentEvent(data);
             break;
         }
       } catch (e) {

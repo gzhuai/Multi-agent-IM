@@ -29,27 +29,35 @@
 │  ┌────────────────┐  ┌───────────┴──────────┐  ┌────────────────┐  │
 │  │   IM Engine    │  │   Agent Runtime      │  │  Work Engine   │  │
 │  │    (Go)        │  │    (Python)          │  │   (Go)         │  │
-│  │                │  │                      │  │                │  │
-│  │ • 消息路由     │  │ • Agent生命周期      │  │ • 任务分发     │  │
-│  │ • 频道管理     │  │ • 灵魂引擎          │  │ • 工作流编排   │  │
-│  │ • 实时同步     │  │ • 记忆检索          │  │ • 状态追踪     │  │
-│  │ • 在线状态     │  │ • 推理调度          │  │ • 看板数据     │  │
-│  └───────┬────────┘  └───────────┬──────────┘  └───────┬────────┘  │
-│          │                       │                      │           │
-└──────────┼───────────────────────┼──────────────────────┼───────────┘
+│  │                │  │   [v2: 薄调度层]     │  │                │  │
+│  │ • 消息路由     │  │                      │  │ • 任务分发     │  │
+│  │ • 频道管理     │  │ • ConnectorRouter    │  │ • 工作流编排   │  │
+│  │ • 实时同步     │  │ • SoulSerializer     │  │ • 状态追踪     │  │
+│  │ • 在线状态     │  │ • MemoryService      │  │ • 看板数据     │  │
+│  │ • EventBus转发 │  │ • EventBus           │  │                │  │
+│  └───────┬────────┘  │ • SandboxManager     │  └───────┬────────┘  │
+│          │           │ • LifecycleManager    │          │           │
+└──────────┼───────────┴───────────┬───────────┴──────────┼───────────┘
            │                       │                      │
-           │              ┌────────┴────────┐             │
-           │              │ CONNECTOR LAYER │             │
-           │              │  ┌──────────┐   │             │
-           │              │  │ Claude   │   │             │
-           │              │  │ Code     │   │             │
-           │              │  ├──────────┤   │             │
-           │              │  │ OpenClaw │   │             │
-           │              │  ├──────────┤   │             │
-           │              │  │ Hermes   │   │             │
-           │              │  └──────────┘   │             │
-           │              └────────┬────────┘             │
-           │                       │                      │
+           │              ┌────────┴──────────────────────┴────┐
+           │              │ CONNECTOR LAYER  [v2: 外部框架代理] │
+           │              │                                     │
+           │              │  ┌──────────────────────────────┐  │
+           │              │  │ Anthropic Agent Connector    │  │
+           │              │  │ • Anthropic API + 工具循环    │  │
+           │              │  │ • 文件IO / Shell / Git / 搜索 │  │
+           │              │  └──────────────────────────────┘  │
+           │              │  ┌──────────────────────────────┐  │
+           │              │  │ Hermes Agent Connector       │  │
+           │              │  │ • from run_agent import AIAgent│  │
+           │              │  │ • 70+工具 / 多步规划 / 子Agent │  │
+           │              │  └──────────────────────────────┘  │
+           │              │  ┌──────────────────────────────┐  │
+           │              │  │ WorkflowEngine (自建)        │  │
+           │              │  │ • DAG编排 / 子Agent委派       │  │
+           │              │  └──────────────────────────────┘  │
+           │              └────────┬───────────────────────────┘
+           │                       │
 ┌──────────┼───────────────────────┼──────────────────────┼───────────┐
 │              DATA LAYER          │                      │            │
 │  ┌────────┴────────┐  ┌─────────┴────────┐  ┌──────────┴─────────┐  │
@@ -104,10 +112,51 @@ IM Engine 内部结构:
 - **频道模型**: 频道分为固定频道（部门群）和动态频道（临时话题/项目群）。Agent可以自主创建动态频道并发起讨论。
 - **人类介入**: 人类可以"旁观"任意Agent对话（类似Zendesk的监听模式），也可以随时插入消息进行干预。
 
-### 2. Agent Runtime (Python)
+### 2. Agent Runtime (Python) — v2 架构
 
-Agent运行时是每个数字AI员工的"大脑主机"。
+> ⚠️ v2 关键变化：Agent Runtime 从"大脑"收缩为**薄调度层**。
+> 推理和工具执行委托给外部 Agent 框架（Anthropic Agent / Hermes Agent 等），
+> Runtime 只做 Soul 序列化、记忆管理、事件推送和沙箱隔离。
 
+```
+Agent Runtime v2 内部结构:
+
+┌──────────────────────────────────────────────┐
+│              Agent Lifecycle Manager         │
+│   create / start / pause / resume / destroy  │
+│   + 状态机: OFFLINE→IDLE→THINKING→WORKING    │
+│                →AWAITING_APPROVAL→DONE       │
+└──────────────────┬───────────────────────────┘
+                   │
+┌──────────────────┴───────────────────────────┐
+│            ConnectorRouter (NEW v2)          │
+│    按 agent.connector_type_v2 分发请求       │
+│    anthropic_agent | hermes_agent |          │
+│    workflow_engine                          │
+└──┬────────────────┬────────────────┬─────────┘
+   │                │                │
+   ▼                ▼                ▼
+┌──────┐  ┌────────┐  ┌──────────┐
+│Anth- │  │Hermes  │  │Workflow  │  ← 外部框架
+│ropic │  │Agent   │  │Engine    │
+│Conn. │  │Conn.   │  │          │
+└──┬───┘  └───┬────┘  └────┬─────┘
+   │          │            │
+   └──────────┼────────────┘
+              │ ← 统一调用 act(soul, memory, event_callback)
+┌─────────────┴───────────────────────────────┐
+│              Shared Services (v2)           │
+│  ┌──────────────┐  ┌──────────────────────┐ │
+│  │ SoulSerializer│  │  MemoryService      │ │
+│  │ Soul→各框架   │  │  统一CRUD+语义检索   │ │
+│  │ Prompt格式    │  │  重要性评估+衰减     │ │
+│  └──────────────┘  └──────────────────────┘ │
+│  ┌──────────────┐  ┌──────────────────────┐ │
+│  │  EventBus    │  │  SandboxManager     │ │
+│  │  Redis Pub/  │  │  Docker沙箱隔离      │ │
+│  │  Sub推送     │  │  命令白名单+资源限制  │ │
+│  └──────────────┘  └──────────────────────┘ │
+└─────────────────────────────────────────────┘
 ```
 Agent Runtime 内部结构:
 
@@ -289,30 +338,45 @@ Task {
 }
 ```
 
-### 5. Connector Adapter (连接器适配层)
+### 5. Connector Adapter (连接器适配层) — v2
+
+> ⚠️ v2: `think()` → `act()`, `Thought` → `ActionResult`。
+> Connector 从"LLM 调用器"升级为"框架集成器"。
 
 ```
-Connector 接口规范:
+Connector v2 接口规范:
 
-interface AgentConnector {
-  // 核心推理
-  think(context: ConversationContext, memory: MemorySnapshot) → Thought
+interface AgentConnectorV2 {
+  // ── 核心：行动执行 ──
+  act(context, soul_profile, memory_context, event_callback) → ActionResult
+  act_stream(context, soul_profile, memory_context, event_callback) → AsyncIterator[str]
 
-  // 工具调用
-  execute_tool(tool_name: string, params: object) → ToolResult
+  // ── 能力声明 ──
+  capability_inventory() → CapabilityInventory   // 框架自描述
+  tool_definitions() → list[ToolDefinition]      // 工具 schema + 权限 + 风险等级
 
-  // 能力声明
-  capabilities() → Capability[]
-
-  // 健康检查
-  health_check() → HealthStatus
+  // ── 生命周期 ──
+  initialize(agent_config)
+  health_check() → bool
+  shutdown()
 }
 
-// 各框架适配
-ClaudeCodeConnector   → 封装Claude Code SDK的推理能力
-OpenClawConnector     → 适配OpenClaw的Agent协议
-HermesConnector       → 适配Hermes的Agent协议
+// 已规划框架适配
+AnthropicAgentConnector → Anthropic API + 自建工具循环 (12个工具)
+HermesAgentConnector    → from run_agent import AIAgent (70+工具)
+WorkflowEngine          → 自建 DAG 编排 + 子Agent委派
 ```
+
+**v1 vs v2 关键区别**：
+
+| | v1 (当前) | v2 (目标) |
+|:--|:---------|:---------|
+| 核心方法 | `think()` | `act()` |
+| 返回类型 | `Thought` (只有文本) | `ActionResult` (文本 + 操作记录 + 文件变更 + 产出物) |
+| 能力声明 | `capabilities()` 返回字符串列表 | `capability_inventory()` 返回结构化能力矩阵 |
+| 权限感知 | 无 | 每个工具声明 `risk_level` + `requires_approval` |
+| 事件推送 | 无 | `event_callback` 实时推送 AgentEvent |
+| 框架定位 | "换 LLM 发电厂" | "换 Agent 大脑" |
 
 ## 通信协议
 

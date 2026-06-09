@@ -8,6 +8,14 @@ This is where everything comes together:
   4. Call the LLM via connector (with tool-use loop)
   5. Save the conversation to memory
   6. Return the agent's response
+
+⚠️ DEPRECATED (v2, 2026-06-09):
+  ReasoningEngine 是 v1 架构的"大脑"。在 v2 架构中，它被 ConnectorRouter
+  取代——推理委托给外部 Agent 框架（Anthropic Agent / Hermes Agent 等），
+  Runtime 只做调度。
+
+  当前 ReasoningEngine 保留作为旧路径 Agent 的回退（双轨兼容）。
+  在全部 Agent 迁移到 v2 后，本模块将标记为正式废弃。
 """
 
 import logging

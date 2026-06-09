@@ -1,5 +1,6 @@
 import { useParams } from "react-router-dom";
 import { useChatStore } from "../../stores/chatStore";
+import { AgentEventStream } from "../AgentEventStream";
 
 export function ChatArea() {
   const { channelId } = useParams();
@@ -15,6 +16,9 @@ export function ChatArea() {
           {channelId ? `# ${channelId}` : "欢迎"}
         </h2>
       </div>
+
+      {/* v2: Agent Event Stream — 实时显示 Agent 执行状态 */}
+      <AgentEventStream channelId={channelId} />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">

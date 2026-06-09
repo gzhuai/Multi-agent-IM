@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package maim.agent_event;
+
+option go_package = "github.com/multi-agent-IM/shared/gen/maim/agent_event;agenteventpb";
+
+import "google/protobuf/struct.proto";
+
+// ============================================================
+// Agent 实时事件 — Agent 执行过程中推送给客户端的异步通知
+//
+// 使用场景:
+//   Agent Runtime 在执行 act() 时，通过 WebSocket 向订阅客户端
+//   推送实时状态更新（思考中、执行工具、等待审批、完成等）。
+//
+// 消息路由:
+//   IM Core WebSocket Hub 收到 AgentEvent 后，
+//   广播给订阅了 channel:{id} 和 agent:{id} 的所有客户端。
+// ============================================================
+
+// ── 事件类型枚举 ──────────────────────────────────────────
+
+enum AgentEventType {
+  AGENT_EVENT_TYPE_UNSPECIFIED = 0;
+
+  // 生命周期
+  AGENT_EVENT_TYPE_STARTED = 1;         // Agent 开始执行
+  AGENT_EVENT_TYPE_DONE = 2;            // Agent 执行完成
+  AGENT_EVENT_TYPE_ERROR = 3;           // Agent 执行出错
+
+  // 推理过程
+  AGENT_EVENT_TYPE_THINKING = 10;       // Agent 正在思考
+  AGENT_EVENT_TYPE_THOUGHT_CHUNK = 11;  // 流式思考片段（实时"输入中"）
+  AGENT_EVENT_TYPE_REASONING = 12;      // 推理过程文本（可解释性）
+
+  // 工具执行
+  AGENT_EVENT_TYPE_TOOL_EXECUTING = 20; // 正在执行工具
+  AGENT_EVENT_TYPE_TOOL_RESULT = 21;    // 工具执行结果
+  AGENT_EVENT_TYPE_TOOL_ERROR = 22;     // 工具执行错误
+
+  // 人类审批
+  AGENT_EVENT_TYPE_APPROVAL_NEEDED = 30;   // 需要审批
+  AGENT_EVENT_TYPE_APPROVAL_GRANTED = 31;  // 审批通过
+  AGENT_EVENT_TYPE_APPROVAL_DENIED = 32;   // 审批拒绝
+  AGENT_EVENT_TYPE_APPROVAL_TIMEOUT = 33;  // 审批超时
+
+  // 进度
+  AGENT_EVENT_TYPE_PROGRESS = 40;       // 进度更新
+}
+
+// ── 审批请求详情 ──────────────────────────────────────────
+
+enum ApprovalRiskLevel {
+  APPROVAL_RISK_UNSPECIFIED = 0;
+  APPROVAL_RISK_SAFE = 1;
+  APPROVAL_RISK_LOW = 2;
+  APPROVAL_RISK_MEDIUM = 3;
+  APPROVAL_RISK_HIGH = 4;
+  APPROVAL_RISK_CRITICAL = 5;
+}
+
+message ApprovalDetail {
+  string approval_id = 1;              // 审批唯一 ID
+  string agent_id = 2;
+  string tool_name = 3;                // 触发审批的工具
+  string action_description = 4;       // 操作描述（人类可读）
+  ApprovalRiskLevel risk_level = 5;
+  google.protobuf.Struct tool_params = 6;  // 工具参数（已脱敏）
+  int32 timeout_seconds = 7;           // 超时自动拒绝时间
+}
+
+// ── 工具执行详情 ──────────────────────────────────────────
+
+message ToolExecutionDetail {
+  string execution_id = 1;
+  string tool_name = 2;
+  google.protobuf.Struct tool_params = 3;  // 工具参数
+  bool success = 4;
+  string result_summary = 5;           // 结果摘要（人类可读）
+  string error_message = 6;
+  double duration_ms = 7;
+  string sandbox_id = 8;
+}
+
+// ── 文件变更 ──────────────────────────────────────────────
+
+message FileChangeDetail {
+  string path = 1;
+  string operation = 2;     // "create" | "modify" | "delete"
+  string diff_preview = 3;  // diff 预览（截断到 200 行）
+  int32 size_before = 4;
+  int32 size_after = 5;
+}
+
+// ── 进度 ──────────────────────────────────────────────────
+
+message ProgressDetail {
+  int32 current_step = 1;
+  int32 total_steps = 2;
+  string message = 3;
+}
+
+// ── 核心消息 ──────────────────────────────────────────────
+
+message AgentEvent {
+  // 基础
+  string agent_id = 1;
+  string agent_name = 2;                   // 展示用名称
+  AgentEventType event_type = 3;
+  string task_id = 4;                      // 关联的任务 ID（如果有）
+  int64 timestamp_ms = 5;                  // epoch millis
+
+  // 载荷（根据 event_type 只设置对应字段）
+  oneof payload {
+    string thought_chunk = 10;             // AGENT_EVENT_TYPE_THOUGHT_CHUNK
+    string reasoning_text = 11;            // AGENT_EVENT_TYPE_REASONING
+    string error_message = 12;             // AGENT_EVENT_TYPE_ERROR
+
+    ToolExecutionDetail tool_executing = 20;  // AGENT_EVENT_TYPE_TOOL_EXECUTING
+    ToolExecutionDetail tool_result = 21;     // AGENT_EVENT_TYPE_TOOL_RESULT
+
+    ApprovalDetail approval = 30;             // AGENT_EVENT_TYPE_APPROVAL_NEEDED
+
+    ProgressDetail progress = 40;             // AGENT_EVENT_TYPE_PROGRESS
+  }
+}
+
+// ── 行动结果（act() 的最终返回）───────────────────────────
+
+message ActionResult {
+  string agent_id = 1;
+  string task_id = 2;
+
+  // 文本回复
+  string text = 10;
+
+  // 操作记录
+  repeated ToolExecutionDetail tool_executions = 20;
+
+  // 文件变更
+  repeated FileChangeDetail file_changes = 30;
+
+  // 推理过程
+  string reasoning_trace = 40;
+
+  // 元数据
+  double total_duration_ms = 50;
+  int32 tokens_used = 51;
+  int32 rounds = 52;
+  bool success = 53;
+  string error_message = 54;
+
+  // 产出物（MiniO URL 等）
+  repeated string artifact_uris = 60;
+}
+
+// ── 审批操作 ──────────────────────────────────────────────
+
+message ApprovalAction {
+  string approval_id = 1;
+  string agent_id = 2;
+  string channel_id = 3;
+
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_APPROVE = 1;
+    ACTION_DENY = 2;
+  }
+  Action action = 4;
+  string comment = 5;  // 审批意见
+}

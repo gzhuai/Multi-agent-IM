@@ -27,6 +27,30 @@ class AgentService:
     async def list_agents(self, org_id: str = "2b711d7c-29b1-429c-b61d-e93ddaa46e41") -> list[dict]:
         return await self.db.list_agents(org_id)
 
+    # ── v2: Routing Helpers ───────────────────────────────────────
+
+    def is_v2_agent(self, agent_data: dict) -> bool:
+        """判断 Agent 是否走 v2 新路径。"""
+        connector_v2 = (agent_data.get("connector_type_v2") or "").strip()
+        if not connector_v2:
+            return False
+        # 旧 connector_type 不算 v2
+        if connector_v2 in ("openai_compatible", "claude_code"):
+            return False
+        return True
+
+    async def get_route_target(self, agent_id: str) -> str:
+        """返回路由目标: 'v1' | 'v2:anthropic_agent' | 'v2:hermes_agent' 等。"""
+        agent = await self.get_agent(agent_id)
+        if not agent:
+            return "v1"  # fallback
+        connector_v2 = (agent.get("connector_type_v2") or "").strip()
+        if connector_v2 and connector_v2 not in ("openai_compatible", "claude_code"):
+            return f"v2:{connector_v2}"
+        return "v1"
+
+    # ── Core Operations ──────────────────────────────────────────
+
     async def activate_agent(self, agent_id: str) -> str:
         agent = await self.db.get_agent(agent_id)
         if not agent:

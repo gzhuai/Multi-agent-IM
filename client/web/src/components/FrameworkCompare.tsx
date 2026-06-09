@@ -22,9 +22,13 @@ interface CallRecord {
   timestamp: string;
 }
 
+// v2: Framework labels (brain frameworks, not LLM providers)
 const FRAMEWORK_LABELS: Record<string, string> = {
-  claude_code: "Claude (Anthropic)",
-  openai_compatible: "OpenAI Compatible",
+  anthropic_agent: "🦾 Anthropic Agent",
+  hermes_agent: "🔮 Hermes Agent",
+  workflow_engine: "🔀 Workflow Engine",
+  claude_code: "Claude API (旧版)",
+  openai_compatible: "OpenAI Compatible (旧版)",
 };
 
 const FRAMEWORK_COLORS: Record<string, string> = {
@@ -49,7 +53,8 @@ export function FrameworkCompare() {
 
   if (loading) return <div className="text-surface-muted text-xs py-4 text-center">加载中...</div>;
   if (!data || Object.keys(data.frameworks).length === 0) {
-    return <div className="text-surface-muted text-xs py-4 text-center">暂无调用数据（至少触发一次 Agent 推理后显示）</div>;
+    // v2: Show framework capability comparison instead of "no data"
+    return <FrameworkCapabilityOverview />;
   }
 
   return (
@@ -105,6 +110,42 @@ export function FrameworkCompare() {
       <button onClick={fetchData} className="w-full py-1.5 rounded-lg bg-white/5 text-surface-muted text-xs hover:bg-white/10 transition-colors">
         🔄 刷新
       </button>
+    </div>
+  );
+}
+
+/** v2: Framework capability overview shown when no API metric data is available. */
+function FrameworkCapabilityOverview() {
+  return (
+    <div className="space-y-3">
+      <div className="text-xs text-surface-muted text-center">框架能力对比（v2 — 三个大脑框架）</div>
+      {[
+        {
+          name: "🦾 Anthropic Agent", caps: "12工具·200K上下文·Shell/Git·流式",
+          color: "border-orange-400", bg: "bg-orange-500/10",
+          pros: ["完整工程能力", "Anthropic Prompt Caching", "200K 上下文窗口"],
+        },
+        {
+          name: "🔮 Hermes Agent", caps: "70+工具·28工具集·多步规划",
+          color: "border-purple-400", bg: "bg-purple-500/10",
+          pros: ["70+ 内置工具", "Think-Act-Observe 循环", "浏览器自动化"],
+        },
+        {
+          name: "🔀 Workflow Engine", caps: "DAG编排·并行分发·失败策略",
+          color: "border-teal-400", bg: "bg-teal-500/10",
+          pros: ["多Agent DAG", "并行节点执行", "skip/continue/abort 策略"],
+        },
+      ].map((fw) => (
+        <div key={fw.name} className={`rounded-xl border-l-[3px] ${fw.color} ${fw.bg} p-3`}>
+          <div className="text-[13px] font-semibold text-white mb-1">{fw.name}</div>
+          <div className="text-[11px] text-surface-muted mb-2">{fw.caps}</div>
+          <div className="space-y-0.5">
+            {fw.pros.map((p, i) => (
+              <div key={i} className="text-[10px] text-surface-400">• {p}</div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

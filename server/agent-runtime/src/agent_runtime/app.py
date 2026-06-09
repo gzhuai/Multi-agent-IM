@@ -16,7 +16,9 @@ load_dotenv(os.path.join(_root, ".env"))
 from agent_runtime.config import load
 from agent_runtime.db import Database
 from api.grpc_server import AgentRuntimeServer
-import connector  # noqa: F401 — trigger connector registration
+import connector  # noqa: F401 — trigger v1 connector registration
+import connector.hermes_agent  # noqa: F401
+import workflow_engine  # noqa: F401 — trigger v2 registrations (@register_connector_v2)
 
 logger = logging.getLogger(__name__)
 

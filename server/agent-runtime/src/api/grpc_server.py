@@ -16,6 +16,7 @@ from agent_runtime.db import Database
 from agent_runtime.agent_service import AgentService
 from agent_runtime.reasoning_engine import ReasoningEngine
 from agent_runtime.metrics import get_metrics
+from connector_router import ConnectorRouter, RoutingResult
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
     db: Database = None
     agent_service: AgentService = None
     reasoning_engine: ReasoningEngine = None
+    connector_router: ConnectorRouter = None  # v2: 双轨路由器
     _loop: asyncio.AbstractEventLoop = None
 
     @classmethod
@@ -165,15 +167,15 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                 self._json(204, {"message": "no tasks queued"})
 
         elif path.startswith("/api/tasks/") and path.endswith("/execute"):
-            # Agent executes a specific task — reasoning with task context
+            # ── v2: 任务执行端点 — ConnectorRouter 双轨路由 ──
             agent_id = body.get("agent_id")
             task_title = body.get("title", "")
             task_desc = body.get("description", "")
             if not agent_id:
                 self._json(400, {"error": "agent_id required"})
                 return
-            result = self._run(
-                self.reasoning_engine.process_message(
+            result: RoutingResult = self._run(
+                self.connector_router.route(
                     agent_id=agent_id,
                     channel_id=body.get("channel_id", ""),
                     messages=[{
@@ -184,11 +186,7 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
                     participants=body.get("participants", []),
                 )
             )
-            self._json(200, {
-                "text": result.text,
-                "actions": result.actions,
-                "memory_saved": result.memory_saved,
-            })
+            self._json(200, self._serialize_routing_result(result))
 
         elif path.startswith("/api/tasks/") and path.endswith("/decompose"):
             # LLM decomposes a task into subtasks
@@ -252,45 +250,37 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
             self._json(200, report)
 
         elif path == "/api/think":
-            # Core thinking endpoint — called by IM Core when agent receives a message
-            result = self._run(
-                self.reasoning_engine.process_message(
+            # ── v2: 核心推理端点 — ConnectorRouter 双轨路由 ──
+            result: RoutingResult = self._run(
+                self.connector_router.route(
                     agent_id=body["agent_id"],
                     channel_id=body.get("channel_id", ""),
                     messages=body.get("messages", []),
                     participants=body.get("participants", []),
                 )
             )
-            self._json(200, {
-                "text": result.text,
-                "actions": result.actions,
-                "memory_saved": result.memory_saved,
-            })
+            self._json(200, self._serialize_routing_result(result))
 
         elif path == "/api/wake":
-            # Autonomous wake — agent decides whether to speak proactively
-            result = self._run(
-                self.reasoning_engine.process_wake(
+            # ── v2: 自主唤醒端点 — ConnectorRouter 双轨路由 ──
+            result: RoutingResult = self._run(
+                self.connector_router.route_wake(
                     agent_id=body["agent_id"],
                     channel_id=body.get("channel_id", ""),
                     participants=body.get("participants", []),
                 )
             )
-            self._json(200, {
-                "text": result.text,
-                "actions": result.actions,
-                "memory_saved": result.memory_saved,
-            })
+            self._json(200, self._serialize_routing_result(result))
 
         elif path == "/api/think/stream":
-            # Streaming thinking endpoint
+            # ── v2: 流式推理端点 — ConnectorRouter 双轨路由 ──
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
 
             async def stream():
-                async for chunk in self.reasoning_engine.process_message_stream(
+                async for chunk in self.connector_router.route_stream(
                     agent_id=body["agent_id"],
                     channel_id=body.get("channel_id", ""),
                     messages=body.get("messages", []),
@@ -318,6 +308,29 @@ class AgentAPIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
+    def _serialize_routing_result(self, result: RoutingResult) -> dict:
+        """将 RoutingResult 序列化为 API 响应 JSON。兼容 v1 的 {text, actions, memory_saved}。"""
+        response: dict = {
+            "text": result.text,
+            "actions": result.actions,
+            "memory_saved": result.memory_saved,
+        }
+        if result.tool_executions:
+            response["tool_executions"] = result.tool_executions
+        if result.file_changes:
+            response["file_changes"] = result.file_changes
+        if result.reasoning_trace:
+            response["reasoning_trace"] = result.reasoning_trace
+        if result.route_decision:
+            response["_route"] = {
+                "connector": result.route_decision.connector_type_v2 or "v1",
+                "path": result.route_decision.route,
+                "reason": result.route_decision.reason,
+            }
+        if result.error:
+            response["error"] = result.error
+        return response
+
     def log_message(self, format, *args):
         logger.debug(format % args)
 
@@ -329,10 +342,21 @@ class AgentRuntimeServer:
         self.db = db
         self._server: HTTPServer | None = None
 
+        # Create core services
+        agent_service = AgentService(db)
+        reasoning_engine = ReasoningEngine(db)
+
+        # v2: ConnectorRouter wraps ReasoningEngine for dual-track routing
+        connector_router = ConnectorRouter(
+            db=db,
+            reasoning_engine=reasoning_engine,
+        )
+
         # Inject dependencies into handler
         AgentAPIHandler.db = db
-        AgentAPIHandler.agent_service = AgentService(db)
-        AgentAPIHandler.reasoning_engine = ReasoningEngine(db)
+        AgentAPIHandler.agent_service = agent_service
+        AgentAPIHandler.reasoning_engine = reasoning_engine
+        AgentAPIHandler.connector_router = connector_router
 
     async def start(self):
         self._server = HTTPServer((self.host, self.port), AgentAPIHandler)
@@ -344,3 +368,6 @@ class AgentRuntimeServer:
         if self._server:
             self._server.shutdown()
             logger.info("Agent Runtime server stopped")
+        # v2: shutdown ConnectorRouter (closes all v2 connectors)
+        if AgentAPIHandler.connector_router:
+            await AgentAPIHandler.connector_router.shutdown()

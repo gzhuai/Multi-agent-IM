@@ -11,6 +11,11 @@ from unittest.mock import MagicMock, AsyncMock
 from dataclasses import dataclass, field
 from typing import Any
 
+# Trigger v2 Connector registrations for tests
+import connector.anthropic_agent  # noqa: F401
+import connector.hermes_agent  # noqa: F401
+import workflow_engine  # noqa: F401
+
 
 # ============================================================
 # Test Data Factories

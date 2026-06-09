@@ -36,8 +36,9 @@ export function AgentsPage() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     name: "", display_name: "", role: "", department: "",
-    background: "", preset: 0, connector_type: "openai_compatible",
-    connector_provider: "deepseek", connector_model: "deepseek-chat",
+    background: "", preset: 0,
+    connector_type_v2: "anthropic_agent",  // v2: framework identifier
+    connector_model: "claude-sonnet-4-6",
   });
   const [mdFiles, setMdFiles] = useState<{ name: string; content: string }[]>([]);
   const [detailAgent, setDetailAgent] = useState<string | null>(null);
@@ -58,9 +59,9 @@ export function AgentsPage() {
         body: JSON.stringify({
           name: form.name, display_name: form.display_name || form.name,
           role: form.role, department: form.department,
-          connector_type: form.connector_type,
+          // v2: framework identifier
+          connector_type_v2: form.connector_type_v2,
           connector_config: {
-            provider: form.connector_provider,
             model: form.connector_model,
           },
           identity: { name: form.name, display_name: form.display_name || form.name, role: form.role, department: form.department, background: form.background },
@@ -77,7 +78,7 @@ export function AgentsPage() {
         const data = await resp.json();
         useAgentStore.getState().setAgents([...agents, { id: data.id, name: data.name, displayName: data.display_name || data.name, role: data.role || "", department: data.department || "", status: "OFFLINE" }]);
         setShowCreate(false);
-        setForm({ name: "", display_name: "", role: "", department: "", background: "", preset: 0, connector_type: "openai_compatible", connector_provider: "deepseek", connector_model: "deepseek-chat" });
+        setForm({ name: "", display_name: "", role: "", department: "", background: "", preset: 0, connector_type_v2: "anthropic_agent", connector_model: "claude-sonnet-4-6" });
       }
     } catch (e) { console.error(e); }
     finally { setCreating(false); }
@@ -206,29 +207,42 @@ export function AgentsPage() {
                 <button onClick={() => setDetailAgent(null)} className="text-surface-muted hover:text-white text-xl">✕</button>
               </div>
 
-              {/* Connector info */}
+              {/* v2: Brain Framework selector */}
               <div className="px-6 py-5 border-b border-white/5">
-                <h3 className="text-[13px] font-semibold text-white mb-3">🔌 LLM 后端</h3>
+                <h3 className="text-[13px] font-semibold text-white mb-3">🧠 大脑框架</h3>
                 <div className="flex items-center gap-2">
                   <select
                     onChange={async (e) => {
-                      const [type, provider] = e.target.value.split(":");
-                      if (!type) return;
+                      const framework = e.target.value;
+                      if (!framework) return;
                       await fetch(`http://localhost:50051/api/agents/${agent.id}/connector`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ connector_type: type, connector_config: { provider } }),
+                        body: JSON.stringify({ connector_type_v2: framework, connector_config: {} }),
                       });
                     }}
                     className="px-3 py-1.5 rounded-lg bg-surface-darker border border-white/10 text-white text-xs"
                   >
-                    <option value="openai_compatible:deepseek">DeepSeek (deepseek-chat)</option>
-                    <option value="openai_compatible:openai">GPT-4o (OpenAI)</option>
-                    <option value="openai_compatible:gemini">Gemini 2.5 Flash</option>
-                    <option value="openai_compatible:groq">Llama 4 (Groq)</option>
-                    <option value="claude_code:claude">Claude Sonnet (Anthropic)</option>
+                    <option value="anthropic_agent">🦾 Anthropic Agent (12工具·工程能力)</option>
+                    <option value="hermes_agent">🔮 Hermes Agent (70+工具·自主规划)</option>
+                    <option value="workflow_engine">🔀 Workflow Engine (DAG编排)</option>
                   </select>
                   <span className="text-surface-muted text-xs">切换后下次推理生效</span>
+                </div>
+                {/* Framework capability preview */}
+                <div className="mt-3 grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: "文件读写", key: "file" },
+                    { label: "Shell执行", key: "shell" },
+                    { label: "代码搜索", key: "search" },
+                    { label: "Git操作", key: "git" },
+                    { label: "子Agent", key: "delegate" },
+                    { label: "多步规划", key: "plan" },
+                  ].map((cap) => (
+                    <div key={cap.key} className="px-2 py-1 rounded bg-white/5 text-[10px] text-white/60 text-center">
+                      {cap.label}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -408,37 +422,57 @@ export function AgentsPage() {
                 )}
               </div>
 
-              {/* LLM Backend Selector */}
+              {/* v2: Brain Framework Selector — replaces LLM Backend Selector */}
               <div>
-                <label className="block text-xs font-semibold text-surface-dark mb-2">🤖 LLM 后端</label>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <label className="block text-xs font-semibold text-surface-dark mb-2">🧠 大脑框架</label>
+                <div className="space-y-2 mb-3">
                   {[
-                    { type: "openai_compatible", provider: "deepseek", model: "deepseek-chat", label: "DeepSeek", desc: "便宜·中文好" },
-                    { type: "openai_compatible", provider: "openai", model: "gpt-4o", label: "GPT-4o", desc: "最强综合" },
-                    { type: "claude_code", provider: "claude", model: "claude-sonnet-4-6", label: "Claude", desc: "推理深" },
-                    { type: "openai_compatible", provider: "gemini", model: "gemini-2.5-flash", label: "Gemini", desc: "免费额度" },
-                    { type: "openai_compatible", provider: "groq", model: "llama-4-scout", label: "Groq", desc: "超快" },
-                    { type: "openai_compatible", provider: "custom", model: "", label: "自定义", desc: "兼容API" },
-                  ].map((opt) => {
-                    const isActive = form.connector_provider === opt.provider && form.connector_type === opt.type;
+                    {
+                      key: "anthropic_agent", label: "Anthropic Agent", icon: "🦾",
+                      desc: "完整工程能力 — 读写文件、执行Shell、Git操作、代码搜索",
+                      caps: "12 工具 · 200K 上下文 · 流式输出",
+                      color: "border-orange-300 bg-orange-50",
+                      active: "border-orange-400 bg-orange-100 ring-2 ring-orange-200",
+                    },
+                    {
+                      key: "hermes_agent", label: "Hermes Agent", icon: "🔮",
+                      desc: "70+ 工具 · 多步规划 · 子Agent委派 · 浏览器自动化",
+                      caps: "NousResearch · 自主进化 · 28 工具集",
+                      color: "border-purple-300 bg-purple-50",
+                      active: "border-purple-400 bg-purple-100 ring-2 ring-purple-200",
+                    },
+                    {
+                      key: "workflow_engine", label: "Workflow Engine", icon: "🔀",
+                      desc: "DAG 多Agent编排 · 并行分发 · 失败策略 · 状态追踪",
+                      caps: "轻量自建 · 无外部依赖",
+                      color: "border-teal-300 bg-teal-50",
+                      active: "border-teal-400 bg-teal-100 ring-2 ring-teal-200",
+                    },
+                  ].map((fw) => {
+                    const isActive = form.connector_type_v2 === fw.key;
                     return (
-                      <button key={opt.provider}
-                        onClick={() => setForm({...form, connector_type: opt.type, connector_provider: opt.provider, connector_model: opt.model})}
-                        className={`p-2.5 rounded-xl text-left border transition-all ${
-                          isActive ? "border-brand-400 bg-brand-50 shadow-sm" : "border-surface-gray hover:border-surface-border"
+                      <button key={fw.key}
+                        onClick={() => setForm({...form, connector_type_v2: fw.key})}
+                        className={`w-full p-3 rounded-xl text-left border-2 transition-all duration-200 ${
+                          isActive ? fw.active : fw.color + " hover:border-gray-300"
                         }`}>
-                        <div className="text-xs font-bold text-surface-dark">{opt.label}</div>
-                        <div className="text-[10px] text-surface-muted mt-0.5">{opt.desc}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{fw.icon}</span>
+                          <div>
+                            <div className="text-sm font-bold text-surface-dark">{fw.label}</div>
+                            <div className="text-[11px] text-surface-muted mt-0.5">{fw.desc}</div>
+                            <div className="text-[10px] text-surface-muted/70 mt-0.5 font-mono">{fw.caps}</div>
+                          </div>
+                        </div>
                       </button>
                     );
                   })}
                 </div>
-                {form.connector_provider === "custom" && (
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <input value={form.connector_model} onChange={(e) => setForm({...form, connector_model: e.target.value})}
-                      placeholder="模型名 (如 meta-llama/llama-4)" className="px-3 py-2 bg-surface-light border border-surface-border rounded-xl text-sm" />
-                  </div>
-                )}
+                {/* Framework-specific model selector */}
+                <div className="grid grid-cols-2 gap-2 mb-1">
+                  <input value={form.connector_model} onChange={(e) => setForm({...form, connector_model: e.target.value})}
+                    placeholder="模型 (如 claude-sonnet-4-6)" className="px-3 py-2 bg-surface-light border border-surface-border rounded-xl text-sm" />
+                </div>
               </div>
 
               <div>

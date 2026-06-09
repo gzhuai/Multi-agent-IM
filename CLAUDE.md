@@ -25,9 +25,13 @@ Multi-agent-IM/
 ├── Makefile                      # 根级编排: infra/start-*/test/lint
 ├── .env.example                  # 环境变量模板
 ├── docs/                         # 顶层设计文档
-│   ├── ARCHITECTURE.md           #   五层架构: Client→Gateway→IM/Agent→Connector→Data
+│   ├── TEST-REPORT.html           #   [v2] 完整测试报告（对外展示）
+│   ├── ARCHITECTURE.md           #   五层架构: Client→Gateway→IM/Agent→Connector→Data [v2更新]
 │   ├── AGENT-SOUL.md             #   灵魂系统: Identity/Persona/Values/Memory/Skills
 │   ├── ROADMAP.md                #   6阶段路线图
+│   ├── ARCHITECTURE-REFLECTION.md #   [NEW] 架构反思 — AI员工能力本质分析
+│   ├── MIGRATION-PLAN.md          #   [NEW] 第二代架构迁移计划 v2
+│   ├── PHASE-1-RESEARCH.md        #   [NEW] Phase -1 前置研究报告
 │   ├── INTEGRATION.md            #   AgentConnector 接口 + 多框架适配
 │   └── TESTING.md                #   TDD 分层测试策略
 ├── deploy/
@@ -43,7 +47,30 @@ Multi-agent-IM/
 └── .github/workflows/test.yml    #   CI: Go单测 + Python单测 + 集成测试
 ```
 
-## 当前阶段: Phase 6 完成 ✅ (2026-06-08)
+## 当前阶段: ✅ v2 架构迁移全部完成 (2026-06-10)
+
+> Phase 0-6 功能开发已完成。v2 架构升级 6 个 Phase 全部交付——
+> 从"内置推理引擎"成功迁移到"外部Agent框架代理"，AI员工现在能真正干活。
+>
+> 详见:
+> - [TEST-REPORT.html](docs/TEST-REPORT.html) — 完整测试报告（对外展示用 HTML）
+> - [ARCHITECTURE-REFLECTION.md](docs/ARCHITECTURE-REFLECTION.md) — 为什么需要升级
+> - [MIGRATION-PLAN.md](docs/MIGRATION-PLAN.md) — v2 迁移计划
+> - [PHASE-1-RESEARCH.md](docs/PHASE-1-RESEARCH.md) — Phase -1 研究结论
+
+### v2 架构迁移 (2026-06-09 ~ 2026-06-10) ✅
+
+| Phase | 内容 | 交付 | 测试 |
+|:-----:|:-----|:-----|:----:|
+| **-1** | 前置研究 — 验证 Anthropic/OpenClaw/Hermes 可用性 | PHASE-1-RESEARCH.md | 研究 |
+| **0** | 接口冻结 — AgentConnectorV2/SoulSerializer/EventBus/Sandbox | 6 new files | — |
+| **1** | 双轨运行 — ConnectorRouter v1/v2 分发 | 1 module | 24 |
+| **2** | Anthropic Agent Connector — 12工具·双后端(Anthropic+DeepSeek) | anthropic_agent.py | 25 |
+| **3** | WorkflowEngine — DAG编排·拓扑分层·并行分发 | workflow_engine.py | 20 |
+| **4** | Hermes Agent Connector — NousResearch AIAgent 集成 | hermes_agent.py | 14 |
+| **5** | UI改造 — 框架选择/AgentEventStream/ApprovalCard | 4 components | — |
+
+> **总计**: 32 文件 (18 新增 + 14 修改) | 160 tests | 0 回归
 
 ### Phase 0-1 MVP ✅
 - [x] JWT 认证 (register/login/me)
@@ -125,8 +152,12 @@ bash scripts/deploy.sh
 7. **扁平化组织** — 不设部门/团队层级, Agent 自由协作, 后期按需拖拽分组
 8. **Per-agent LLM 隔离** — Agent DB 配置优先于环境变量, 每个Agent独立后端
 9. **Agent 不互触发** — sender_type!=agent 的消息才触发频道内Agent, 防死循环
+10. **Per-framework 独立** — 每个 Agent 指定大脑框架(Anthropic/Hermes/WorkflowEngine)，各展所长 (v2)
+11. **双后端自动检测** — AnthropicAgentConnector 自动识别 Anthropic/DeepSeek/OpenAI API key，无需手动切换 (v2)
+12. **事件驱动架构** — Agent 执行过程通过 EventBus 实时推送状态（THINKING→TOOL_EXEC→APPROVAL→DONE）(v2)
+13. **沙箱隔离** — 文件/Shell 操作在沙箱内执行，危险命令自动拦截 (v2)
 
-## 环境状态 (2026-06-08)
+## 环境状态 (2026-06-10) — 全栈已启动
 
 | 组件 | 状态 |
 |------|:--:|
@@ -140,21 +171,36 @@ bash scripts/deploy.sh
 | 前端 :5173 | ✓ |
 | API Gateway :3000 | ✓ |
 | IM Core :8080 | ✓ |
-| Agent Runtime :50051 | ✓ |
+| Agent Runtime :50051 | ✓ (3 v2 Connector 已注册) |
 | DeepSeek API | ✓ (sk-xxx... 已配置) |
-| ANTHROPIC_API_KEY | ✗ (Claude 模式需要) |
+| ANTHROPIC_API_KEY | ✗ (可用但未配置真实 key — placeholder) |
+
+### v2 Connector 注册状态
+```
+CONNECTOR_REGISTRY_V2 = {
+  'anthropic_agent': AnthropicAgentConnector  # Anthropic+DeepSeek 双后端
+  'hermes_agent':    HermesAgentConnector     # NousResearch AIAgent 集成
+  'workflow_engine': WorkflowEngine           # DAG 编排引擎
+}
+```
 
 ## 待办
 
-- [ ] cloudflared/cpolar 公网隧道 (让同事远程访问)
-- [ ] .env 中配置 ANTHROPIC_API_KEY (使用 Claude 模式时需要)
+### v2 收尾
 - [ ] Go 换为 amd64 版本 (当前 386)
-- [ ] 编写 docker-compose.prod.yml 中 Go 服务的 Dockerfile
+- [ ] 编写 Go 服务生产 Dockerfile
+- [ ] cloudflared/cpolar 公网隧道
+
+### 文档
+- [x] PHASE-1-RESEARCH.md — 前置研究
+- [x] ARCHITECTURE-REFLECTION.md — 架构反思
+- [x] MIGRATION-PLAN.md — v2 迁移计划
+- [x] TEST-REPORT.html — 测试报告
 
 ## Git
 
 - 仓库: `D:/Projects/Multi-agent-IM`
 - 远端: https://github.com/gzhuai/Multi-agent-IM
 - 初始提交: `8dada00` — Phase 0+1 MVP
-- 最新提交: `602a299` — Phase 6 完成
-- 提交数: 16 commits | 文件: ~100 | 代码: ~10,500 lines
+- 前次提交: `602a299` — Phase 6 完成
+- 提交数: 16 commits | 文件: ~100 | 代码: ~10,500 lines → v2 新增 ~5,000 lines

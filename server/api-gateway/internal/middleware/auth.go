@@ -46,7 +46,7 @@ func AuthOptional(authSvc *service.AuthService) func(http.Handler) http.Handler 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := extractToken(r)
 			if token != "" {
-				userID, username, role, err := authSvc.ValidateToken(token)
+				userID, username, _, err := authSvc.ValidateToken(token)
 				if err == nil {
 					ctx := context.WithValue(r.Context(), UserIDKey, userID)
 					ctx = context.WithValue(ctx, UsernameKey, username)

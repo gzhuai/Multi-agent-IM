@@ -37,13 +37,15 @@ class Database:
             await sess.execute(text("""
                 INSERT INTO agents (id, organization_id, name, display_name, role,
                     department, level, status, identity, persona, value_system,
-                    connector_type, connector_config, created_at, updated_at)
+                    connector_type, connector_config, connector_type_v2, tool_permissions,
+                    created_at, updated_at)
                 VALUES (:id, :org_id, :name, :display_name, :role, :department,
                     :level, 'OFFLINE', :identity, :persona, :value_system,
-                    :conn_type, :conn_config, :now, :now)
+                    :conn_type, :conn_config, :conn_type_v2, :tool_perms,
+                    :now, :now)
             """), {
                 "id": agent_id,
-                "org_id": data.get("organization_id", "default"),
+                "org_id": data.get("organization_id", "2b711d7c-29b1-429c-b61d-e93ddaa46e41"),
                 "name": data["name"],
                 "display_name": data.get("display_name", data["name"]),
                 "role": data.get("role", ""),
@@ -54,6 +56,8 @@ class Database:
                 "value_system": json.dumps(data.get("value_system", {})),
                 "conn_type": data.get("connector_type", "claude_code"),
                 "conn_config": json.dumps(data.get("connector_config", {})),
+                "conn_type_v2": data.get("connector_type_v2", ""),
+                "tool_perms": json.dumps(data.get("tool_permissions", [])),
                 "now": now,
             })
             await sess.commit()
@@ -65,7 +69,8 @@ class Database:
             result = await sess.execute(text("""
                 SELECT id, organization_id, name, display_name, role, department,
                        level, status, identity, persona, value_system,
-                       connector_type, connector_config, created_at
+                       connector_type, connector_config, connector_type_v2,
+                       tool_permissions, created_at
                 FROM agents WHERE id = :id
             """), {"id": agent_id})
             row = result.fetchone()
@@ -85,7 +90,9 @@ class Database:
                 "value_system": row[10] if isinstance(row[10], dict) else json.loads(row[10] or "{}"),
                 "connector_type": row[11],
                 "connector_config": row[12] if isinstance(row[12], dict) else json.loads(row[12] or "{}"),
-                "created_at": row[13],
+                "connector_type_v2": row[13] or "",
+                "tool_permissions": row[14] if isinstance(row[14], (list, dict)) else (json.loads(row[14] or "[]") if row[14] else []),
+                "created_at": row[15],
             }
 
     async def update_agent_connector(self, agent_id: str, connector_type: str, connector_config: dict) -> None:
