@@ -46,6 +46,7 @@ from connector.base_v2 import (
 
 # Trigger @register_connector_v2 for all v2 connectors
 import connector.anthropic_agent  # noqa: F401
+import connector.claude_code_cli  # noqa: F401
 import connector.hermes_agent  # noqa: F401
 import workflow_engine  # noqa: F401
 

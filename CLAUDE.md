@@ -178,9 +178,10 @@ bash scripts/deploy.sh
 ### v2 Connector 注册状态
 ```
 CONNECTOR_REGISTRY_V2 = {
-  'anthropic_agent': AnthropicAgentConnector  # Anthropic+DeepSeek 双后端
-  'hermes_agent':    HermesAgentConnector     # NousResearch AIAgent 集成
-  'workflow_engine': WorkflowEngine           # DAG 编排引擎
+  'anthropic_agent':  AnthropicAgentConnector   # SDK 直连 (Anthropic+DeepSeek 双后端)
+  'claude_code_cli':  ClaudeCodeCLIConnector    # CLI 子进程 (完整 Claude Code harness)
+  'hermes_agent':     HermesAgentConnector      # NousResearch AIAgent 集成
+  'workflow_engine':  WorkflowEngine            # DAG 编排引擎
 }
 ```
 

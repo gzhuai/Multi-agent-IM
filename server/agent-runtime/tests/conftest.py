@@ -13,6 +13,7 @@ from typing import Any
 
 # Trigger v2 Connector registrations for tests
 import connector.anthropic_agent  # noqa: F401
+import connector.claude_code_cli  # noqa: F401
 import connector.hermes_agent  # noqa: F401
 import workflow_engine  # noqa: F401
 
